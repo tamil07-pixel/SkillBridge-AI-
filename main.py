@@ -18,7 +18,7 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel
-("gemini-2.5-flash")
+("gemini-1.5-flash")
 # App Header
 st.title("🚀 SkillBridge AI")
 st.caption("AI-powered Career Roadmap Generator & Job Scam Detector")
