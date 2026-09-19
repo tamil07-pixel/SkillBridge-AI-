@@ -17,7 +17,8 @@ if not api_key:
     st.stop()
 
 genai.configure(api_key=api_key)
-model = model=genai.GenerativeModel('gemini-2.5-flash')
+model = model = genai.GenerativeModel('gemini-3.6-flash')
+
 
 
 # App Header
