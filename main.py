@@ -17,8 +17,8 @@ if not api_key:
     st.stop()
 
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel
-("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-1.5-flash")
+
 # App Header
 st.title("🚀 SkillBridge AI")
 st.caption("AI-powered Career Roadmap Generator & Job Scam Detector")
@@ -30,49 +30,37 @@ tab1, tab2 = st.tabs(["🛣️ Career Roadmap Generator", "🔍 Job Scam Detecto
 with tab1:
     st.header("Custom Career Roadmap Generator")
     st.write("Enter your target role to generate a step-by-step learning path and required skills.")
-    
-    target_role = st.text_input("Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):")
-    experience_level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
-    
-    if st.button("Generate Roadmap", type="primary"):
-        if target_role:
-            with st.spinner("Generating roadmap..."):
-                prompt = f"""
-                Create a detailed, step-by-step career roadmap for a {experience_level} looking to become a {target_role}.
-                Include:
-                1. Key technical and soft skills to learn.
-                2. Phase-by-phase learning timeline.
-                3. Essential projects to build for Resume.
-                4. Recommended certifications or resources.
-                Keep the output clean, structured with markdown headings and bullet points.
-                """
-                response = model.generate_content(prompt)
-                st.markdown(response.text)
+
+    role = st.text_input("Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):", key="roadmap_role")
+    experience = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"], key="roadmap_exp")
+
+    if st.button("Generate Roadmap", key="btn_roadmap"):
+        if role.strip():
+            with st.spinner("Generating your roadmap..."):
+                try:
+                    prompt = f"Create a step-by-step career roadmap for a {experience} level {role}. Include key skills, tools to learn, and recommended projects."
+                    response = model.generate_content(prompt)
+                    st.markdown(response.text)
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
         else:
-            st.warning("Please enter a target role!")
+            st.warning("Please enter a target role.")
 
 # TAB 2: Job Scam Detector
 with tab2:
-    st.header("Job Offer Scam Detector")
-    st.write("Paste the job offer text or email message below to check its authenticity.")
-    
-    job_text = st.text_area("Enter Job Offer / Email Text:", height=200)
-    
-    if st.button("Analyze Offer", type="primary"):
-        if job_text:
-            with st.spinner("Analyzing text..."):
-                prompt = f"""
-                Analyze the following job description/offer message for potential scam indicators (e.g., asking for money, suspicious email domains, unrealistic salaries, lack of interview process).
-                
-                Text to analyze:
-                {job_text}
-                
-                Provide:
-                1. Risk Rating (Safe, Moderate Risk, High Risk / Scam)
-                2. Key Red Flags detected (if any)
-                3. Recommendation for the user
-                """
-                response = model.generate_content(prompt)
-                st.markdown(response.text)
+    st.header("Job Scam Detector")
+    st.write("Paste the job offer text or email below to check if it's potentially a scam.")
+
+    job_text = st.text_area("Job Offer / Email Content:", height=150, key="scam_text")
+
+    if st.button("Analyze Job Offer", key="btn_scam"):
+        if job_text.strip():
+            with st.spinner("Analyzing job offer..."):
+                try:
+                    prompt = f"Analyze the following job offer for red flags or signs of a scam. Provide a risk assessment and explanation:\n\n{job_text}"
+                    response = model.generate_content(prompt)
+                    st.markdown(response.text)
+                except Exception as e:
+                    st.error(f"An error occurred: {str(e)}")
         else:
-            st.warning("Please enter text to analyze!")
+            st.warning("Please paste some job offer text to analyze.")
