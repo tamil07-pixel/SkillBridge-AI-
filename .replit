@@ -1,0 +1,47 @@
+modules = ["nodejs-24", "python-3.11"]
+
+run = "streamlit run --server.address 0.0.0.0 --server.port 8501 --server.headless true --server.enableCORS=false --server.enableWebsocketCompression=false main.py"
+
+[deployment]
+router = "application"
+deploymentTarget = "autoscale"
+run = "streamlit run --server.address 0.0.0.0 --server.port 8501 --server.headless true --server.enableCORS=false --server.enableWebsocketCompression=false main.py"
+
+[deployment.postBuild]
+args = ["pnpm", "store", "prune"]
+env = { "CI" = "true" }
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Pathwise Career Compass"
+
+[[workflows.workflow]]
+name = "Pathwise Career Compass"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "streamlit run main.py --server.port 8501 --server.address 0.0.0.0 --server.headless true --server.enableCORS=false --server.enableWebsocketCompression=false"
+waitForPort = 8501
+
+[workflows.workflow.metadata]
+outputType = "webview"
+
+[agent]
+stack = "PNPM_WORKSPACE"
+expertMode = true
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 20000
+
+[nix]
+channel = "stable-25_05"
