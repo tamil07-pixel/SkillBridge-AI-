@@ -10,8 +10,7 @@ st.set_page_config(
 )
 
 # Initialize Gemini API
-api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-
+Gemini API Key 3
 if not api_key:
     st.error("🔑 Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
     st.stop()
