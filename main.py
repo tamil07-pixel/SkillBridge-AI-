@@ -19,6 +19,17 @@ if not api_key:
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-3.8-flash')
 
+# Stream helper function (Instant typing effect)
+def stream_response(prompt):
+    response = model.generate_content(
+        prompt,
+        generation_config={"max_output_tokens": 500, "temperature": 0.2},
+        stream=True
+    )
+    for chunk in response:
+        if chunk.text:
+            yield chunk.text
+
 # App Header
 st.title("🚀 SkillBridge AI")
 st.caption("AI-powered Career Roadmap Generator & Job Scam Detector")
@@ -36,16 +47,11 @@ with tab1:
 
     if st.button("Generate Roadmap", key="btn_roadmap"):
         if role.strip():
-            with st.spinner("Generating your roadmap..."):
-                try:
-                    prompt = f"Create a step-by-step career roadmap for a {experience} level {role}. Include key skills, tools to learn, and recommended projects."
-                    response = model.generate_content(
-                        prompt,
-                        generation_config={"max_output_tokens": 500, "temperature": 0.2}
-                    )
-                    st.markdown(response.text)
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
+            try:
+                prompt = f"Create a concise step-by-step career roadmap for a {experience} level {role}. Include key skills, tools, and 2 project ideas in bullet points."
+                st.write_stream(stream_response(prompt))
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
         else:
             st.warning("Please enter a target role.")
 
@@ -58,15 +64,10 @@ with tab2:
 
     if st.button("Analyze Job Offer", key="btn_scam"):
         if job_text.strip():
-            with st.spinner("Analyzing job offer..."):
-                try:
-                    prompt = f"Analyze the following job offer for red flags or signs of a scam. Provide a risk assessment and explanation:\n\n{job_text}"
-                    response = model.generate_content(
-                        prompt,
-                        generation_config={"max_output_tokens": 500, "temperature": 0.2}
-                    )
-                    st.markdown(response.text)
-                except Exception as e:
-                    st.error(f"An error occurred: {str(e)}")
+            try:
+                prompt = f"Analyze this job offer for scam red flags. Give a clear Risk Level (Low/Medium/High) and brief bullet-point reasons:\n\n{job_text}"
+                st.write_stream(stream_response(prompt))
+            except Exception as e:
+                st.error(f"An error occurred: {str(e)}")
         else:
             st.warning("Please paste some job offer text to analyze.")
