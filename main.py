@@ -17,9 +17,19 @@ if not api_key:
     st.stop()
 
 genai.configure(api_key=api_key)
-model = model = genai.GenerativeModel('gemini-3.6-flash')
 
+# Automatic-ah valid ana Flash model-ah select panra function
+def get_working_model():
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods and 'flash' in m.name:
+                return genai.GenerativeModel(m.name.replace("models/", ""))
+    except Exception:
+        pass
+    return genai.GenerativeModel('gemini-1.5-flash')
 
+# Model initialize panniyachu
+model = get_working_model()
 
 # App Header
 st.title("🚀 SkillBridge AI")
@@ -41,7 +51,10 @@ with tab1:
             with st.spinner("Generating your roadmap..."):
                 try:
                     prompt = f"Create a step-by-step career roadmap for a {experience} level {role}. Include key skills, tools to learn, and recommended projects."
-                    response = model.generate_content(prompt)
+                    response = model.generate_content(
+                        prompt,
+                        generation_config={"max_output_tokens": 800, "temperature": 0.3}
+                    )
                     st.markdown(response.text)
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
@@ -60,7 +73,10 @@ with tab2:
             with st.spinner("Analyzing job offer..."):
                 try:
                     prompt = f"Analyze the following job offer for red flags or signs of a scam. Provide a risk assessment and explanation:\n\n{job_text}"
-                    response = model.generate_content(prompt)
+                    response = model.generate_content(
+                        prompt,
+                        generation_config={"max_output_tokens": 800, "temperature": 0.3}
+                    )
                     st.markdown(response.text)
                 except Exception as e:
                     st.error(f"An error occurred: {str(e)}")
