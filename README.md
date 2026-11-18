@@ -27,8 +27,8 @@ https://59qsqvcpenrpum9u67uhat.streamlit.app/
 
 * **Frontend & UI:** Streamlit
 * **Language & Logic:** Python
-* **Deployment & Hosting:** GitHub, Lovable AI
-* **Live Demo:** [tamilarasanportfolio.lovable.app](https://tamilarasanportfolio.lovable.app/)
+* **Deployment & Hosting:** streamlit,GitHub,
+* **Live Demo:** 
 
 ---
 
