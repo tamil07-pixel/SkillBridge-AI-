@@ -1,4 +1,3 @@
-
 import os
 import streamlit as st
 from google import genai
@@ -12,10 +11,6 @@ st.set_page_config(
 
 # Fetching Gemini API Key from Streamlit Secrets
 api_key = st.secrets.get("GEMINI_API_KEY")
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=prompt
-                )
 
 if not api_key:
     st.error("Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
@@ -43,7 +38,7 @@ if st.button("Generate Roadmap"):
                 """
                 
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                    model="gemini-3.8-flash",
                     contents=prompt
                 )
                 
@@ -52,3 +47,4 @@ if st.button("Generate Roadmap"):
                 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
+
