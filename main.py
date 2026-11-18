@@ -1,64 +1,79 @@
- import os
+ Skill bridge ai code:
+import os
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 
-# Page configuration
+# Page Configuration
 st.set_page_config(
-    page_title="Custom Career Roadmap Generator",
+    page_title="SkillBridge AI",
     page_icon="🚀",
-    layout="centered"
+    layout="wide"
 )
 
-# Initialize Session State for Usage Limit
-if "usage_count" not in st.session_state:
-    st.session_state.usage_count = 0
-
-MAX_LIMIT = 20
-
-# Fetching Gemini API Key from Streamlit Secrets
-api_key = st.secrets.get("GEMINI_API_KEY")
+# Initialize Gemini API
+api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 if not api_key:
-    st.error("Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
+    st.error("🔑 Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
     st.stop()
 
-# Initialize Gemini client
-client = genai.Client(api_key=api_key)
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-st.title("Custom Career Roadmap Generator")
-st.markdown("Enter your target role to generate a step-by-step learning path and required skills.")
+# App Header
+st.title("🚀 SkillBridge AI")
+st.caption("AI-powered Career Roadmap Generator & Job Scam Detector")
 
-# Show remaining limit
-remaining = MAX_LIMIT - st.session_state.usage_count
-st.sidebar.markdown(f"**Usage Limit:** {st.session_state.usage_count}/{MAX_LIMIT} used")
+# Navigation Tabs
+tab1, tab2 = st.tabs(["🛣️ Career Roadmap Generator", "🔍 Job Scam Detector"])
 
-# User inputs
-target_role = st.text_input("Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):", "Software Developer")
-experience_level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
-
-if st.button("Generate Roadmap"):
-    if st.session_state.usage_count >= MAX_LIMIT:
-        st.error("Daily limit reached! You have used all 20 free generations for now. Try again later.")
-    elif not target_role.strip():
-        st.warning("Please enter a target role.")
-    else:
-        with st.spinner("Generating your personalized career roadmap..."):
-            try:
+# TAB 1: Career Roadmap Generator
+with tab1:
+    st.header("Custom Career Roadmap Generator")
+    st.write("Enter your target role to generate a step-by-step learning path and required skills.")
+    
+    target_role = st.text_input("Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):")
+    experience_level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
+    
+    if st.button("Generate Roadmap", type="primary"):
+        if target_role:
+            with st.spinner("Generating roadmap..."):
                 prompt = f"""
-                Create a detailed, step-by-step career roadmap and required technical skills for a {experience_level} aiming to become a {target_role}.
-                Include key milestones, essential tools/technologies, and actionable advice. Format the output cleanly using Markdown.
+                Create a detailed, step-by-step career roadmap for a {experience_level} looking to become a {target_role}.
+                Include:
+                1. Key technical and soft skills to learn.
+                2. Phase-by-phase learning timeline.
+                3. Essential projects to build for Resume.
+                4. Recommended certifications or resources.
+                Keep the output clean, structured with markdown headings and bullet points.
                 """
-                
-                response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=prompt
-                )
-                
-                # Increment usage count on success
-                st.session_state.usage_count += 1
-                
-                st.success("Roadmap Generated Successfully!")
+                response = model.generate_content(prompt)
                 st.markdown(response.text)
+        else:
+            st.warning("Please enter a target role!")
+
+# TAB 2: Job Scam Detector
+with tab2:
+    st.header("Job Offer Scam Detector")
+    st.write("Paste the job offer text or email message below to check its authenticity.")
+    
+    job_text = st.text_area("Enter Job Offer / Email Text:", height=200)
+    
+    if st.button("Analyze Offer", type="primary"):
+        if job_text:
+            with st.spinner("Analyzing text..."):
+                prompt = f"""
+                Analyze the following job description/offer message for potential scam indicators (e.g., asking for money, suspicious email domains, unrealistic salaries, lack of interview process).
                 
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
+                Text to analyze:
+                {job_text}
+                
+                Provide:
+                1. Risk Rating (Safe, Moderate Risk, High Risk / Scam)
+                2. Key Red Flags detected (if any)
+                3. Recommendation for the user
+                """
+                response = model.generate_content(prompt)
+                st.markdown(response.text)
+        else:
+            st.warning("Please enter text to analyze!")
