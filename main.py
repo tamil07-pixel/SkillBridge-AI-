@@ -9,11 +9,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Gemini API directly with your new key
-api_key = "AQ.Ab8RN6KnXoco20_dEqkJ3EyBo5w4y..."
+# Initialize Gemini API (Aizasy... key-ah inga potrukkonga)
+api_key = "AIzaSy..." # Ungaloda actual AIzaSy key-ah inga paste pannunga
 
 genai.configure(api_key=api_key)
-model = genai.GenerativeModel('gemini-2.0-flash')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Stream helper function (Instant typing effect)
 def stream_response(prompt):
@@ -61,7 +61,7 @@ with tab2:
     if st.button("Analyze Job Offer", key="btn_scam"):
         if job_text.strip():
             try:
-                prompt = f"Analyze this job offer for scam red flags. Give a clear Risk Level (Low/Medium/High) and brief bullet-point reasons:\n\n{job_text}"
+                prompt = f"Analyze this joboffer for scam red flags. Give a clear Risk Level (Low/Medium/High) and brief bullet-point reasons:\n\n{job_text}"
                 st.write_stream(stream_response(prompt))
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
