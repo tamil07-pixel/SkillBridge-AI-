@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-from google import genai
+from groq import Groq
 
 # Page Configuration
 st.set_page_config(
@@ -9,31 +9,29 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Gemini API using the new client
-api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
+# Initialize Groq API
+api_key = st.secrets.get("GROQ_API_KEY") or os.environ.get("GROQ_API_KEY")
 
 if not api_key:
-    st.error("🔑 Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
+    st.error("🔑 Groq API Key is missing! Please configure 'GROQ_API_KEY' in Streamlit Cloud Secrets.")
     st.stop()
 
-client = genai.Client(api_key=api_key)
+client = Groq(api_key=api_key)
 
-# Safe generation function with new SDK and model fallbacks
+# Groq generation function using fast & reliable llama model
 def generate_ai_content(prompt):
-    models_to_try = ["gemini-2.5-flash", "gemini-1.5-flash", "gemini-1.5-pro"]
-    for model_name in models_to_try:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt
-            )
-            return response.text
-        except Exception as e:
-            if "429" in str(e) or "404" in str(e) or "quota" in str(e).lower() or "not found" in str(e).lower():
-                continue
-            else:
-                raise e
-    raise Exception("API quota exceeded for all models. Please try again later.")
+    try:
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=1500,
+        )
+        return completion.choices[0].message.content
+    except Exception as e:
+        raise Exception(f"An error occurred: {str(e)}")
 
 # App Header
 st.title("🚀 SkillBridge AI")
