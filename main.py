@@ -9,8 +9,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Gemini API
-api_key = "AIzaSy..." # Inga unga real key-ah extra space illama sariya podunga
+# Initialize Gemini API safely from Streamlit Secrets
+api_key = st.secrets["GEMINI_API_KEY"]
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-1.5-flash')
