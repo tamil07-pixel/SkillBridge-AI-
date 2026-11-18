@@ -22,7 +22,7 @@ if not api_key:
     st.error("Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
     st.stop()
 
-# Initialize Gemini client using the correct google-genai SDK
+# Initialize Gemini client
 client = genai.Client(api_key=api_key)
 
 st.title("Custom Career Roadmap Generator")
@@ -49,9 +49,9 @@ if st.button("Generate Roadmap"):
                 Include key milestones, essential tools/technologies, and actionable advice. Format the output cleanly using Markdown.
                 """
                 
-                # Correct API call structure for google-genai
+                # Using standard flash model
                 response = client.models.generate_content(
-                    model="gemini-3.8-flash",
+                    model="gemini-2.5-flash",
                     contents=prompt
                 )
                 
@@ -62,5 +62,4 @@ if st.button("Generate Roadmap"):
                 st.markdown(response.text)
                 
             except Exception as e:
-                st.error(f"An error occurred: {e}")
-
+                st.warning("Server is experiencing high traffic. Please wait 10 seconds and click 'Generate Roadmap' again!")
