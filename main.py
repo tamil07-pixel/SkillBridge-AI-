@@ -9,8 +9,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Gemini API (Aizasy... key-ah inga potrukkonga)
-api_key = "AIzaSy..." # Ungaloda actual AIzaSy key-ah inga paste pannunga
+# Initialize Gemini API
+api_key = "AIzaSy..." # Inga unga real key-ah extra space illama sariya podunga
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -61,7 +61,7 @@ with tab2:
     if st.button("Analyze Job Offer", key="btn_scam"):
         if job_text.strip():
             try:
-                prompt = f"Analyze this joboffer for scam red flags. Give a clear Risk Level (Low/Medium/High) and brief bullet-point reasons:\n\n{job_text}"
+                prompt = f"Analyze this job offer for scam red flags. Give a clear Risk Level (Low/Medium/High) and brief bullet-point reasons:\n\n{job_text}"
                 st.write_stream(stream_response(prompt))
             except Exception as e:
                 st.error(f"An error occurred: {str(e)}")
