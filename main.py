@@ -41,7 +41,7 @@ with tab1:
                     prompt = f"Create a step-by-step career roadmap for a {experience} level {role}. Include key skills, tools to learn, and recommended projects."
                     response = model.generate_content(
                         prompt,
-                        generation_config={"max_output_tokens": 800, "temperature": 0.3}
+                        generation_config={"max_output_tokens": 500, "temperature": 0.2}
                     )
                     st.markdown(response.text)
                 except Exception as e:
@@ -63,7 +63,7 @@ with tab2:
                     prompt = f"Analyze the following job offer for red flags or signs of a scam. Provide a risk assessment and explanation:\n\n{job_text}"
                     response = model.generate_content(
                         prompt,
-                        generation_config={"max_output_tokens": 800, "temperature": 0.3}
+                        generation_config={"max_output_tokens": 500, "temperature": 0.2}
                     )
                     st.markdown(response.text)
                 except Exception as e:
