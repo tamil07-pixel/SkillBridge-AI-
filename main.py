@@ -9,15 +9,12 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Gemini API
-api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-
-if not api_key:
-    st.error("🔑 Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
-    st.stop()
+# Initialize Gemini API directly with your new key
+api_key = "AQ.Ab8RN6KnXoco20_dEqkJ3EyBo5w4y..."
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-2.0-flash')
+
 # Stream helper function (Instant typing effect)
 def stream_response(prompt):
     response = model.generate_content(
