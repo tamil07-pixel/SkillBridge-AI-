@@ -17,19 +17,7 @@ if not api_key:
     st.stop()
 
 genai.configure(api_key=api_key)
-
-# Automatic-ah valid ana Flash model-ah select panra function
-def get_working_model():
-    try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods and 'flash' in m.name:
-                return genai.GenerativeModel(m.name.replace("models/", ""))
-    except Exception:
-        pass
-    return genai.GenerativeModel('gemini-1.5-flash')
-
-# Model initialize panniyachu
-model = get_working_model()
+model = genai.GenerativeModel('gemini-3.8-flash')
 
 # App Header
 st.title("🚀 SkillBridge AI")
