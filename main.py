@@ -18,7 +18,6 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 model = genai.GenerativeModel('gemini-1.5-pro')
-
 # Stream helper function (Instant typing effect)
 def stream_response(prompt):
     response = model.generate_content(
