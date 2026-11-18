@@ -23,7 +23,7 @@ st.title("Custom Career Roadmap Generator")
 st.markdown("Enter your target role to generate a step-by-step learning path and required skills.")
 
 # User inputs
-target_role = st.text_input("Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):", "Software Developer")
+target_role = st.text_input("Target Role (e.g., All type roles,Ex:Full Stack Developer, Embedded Systems Engineer):", "Software Developer")
 experience_level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
 if st.button("Generate Roadmap"):
@@ -36,12 +36,11 @@ if st.button("Generate Roadmap"):
                 Create a detailed, step-by-step career roadmap and required technical skills for a {experience_level} aiming to become a {target_role}.
                 Include key milestones, essential tools/technologies, and actionable advice. Format the output cleanly using Markdown.
                 """
-                
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
+                                response = client.models.generate_content(
+                    model="gemini-3.8-flash",
                     contents=prompt
                 )
-                
+
                 st.success("Roadmap Generated Successfully!")
                 st.markdown(response.text)
                 
