@@ -1,7 +1,6 @@
 import os
 import streamlit as st
 from google import genai
-
 # Page configuration
 st.set_page_config(
     page_title="Custom Career Roadmap Generator",
