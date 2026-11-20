@@ -1,8 +1,7 @@
-# SkillBridge AI - Gemini 3.8 Flash Edition
+# SkillBridge AI - Fast & Safe Edition
 import json
 import os
 import re
-import time
 import urllib.error
 import urllib.request
 import streamlit as st
@@ -38,72 +37,47 @@ def get_ai_provider() -> tuple[str | None, str]:
     return None, "none"
 
 
-def call_gemini(prompt: str, api_key: str, retries: int = 2) -> str:
+def call_gemini(prompt: str, api_key: str) -> str:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-3.8-flash:generateContent?key={api_key}"
     )
     payload = {
-        "system_instruction": {
-            "parts": [
-                {
-                    "text": (
-                        "You are SkillBridge AI, a practical career mentor and job-safety analyst. "
-                        "Give clear, detailed, structured, and actionable responses strictly relevant to the user's input."
-                    )
-                }
-            ]
-        },
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4},
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1200},
     }
-
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "SkillBridgeAI/1.0",
     }
 
-    last_error = None
-    for attempt in range(retries + 1):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise RuntimeError("Empty response from Gemini API")
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text_out = "".join(p.get("text", "") for p in parts).strip()
+            if not text_out:
+                raise RuntimeError("No text returned by Gemini API")
+            return text_out
+    except urllib.error.HTTPError as e:
+        err_body = ""
         try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    raise RuntimeError("Empty response from Gemini API")
-                parts = candidates[0].get("content", {}).get("parts", [])
-                text_out = "".join(p.get("text", "") for p in parts).strip()
-                if not text_out:
-                    raise RuntimeError("No text returned by Gemini API")
-                return text_out
-        except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-            last_error = RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
-            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error
-        except Exception as e:
-            last_error = e
-            if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error
-
-    raise RuntimeError("Gemini request failed")
+            err_body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        raise RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
 
 
-def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: int = 2) -> str:
+def call_openai_compatible(prompt: str, api_key: str, provider: str) -> str:
     if provider == "groq":
         url = "https://api.groq.com/openai/v1/chat/completions"
         model = "llama-3.3-70b-versatile"
@@ -116,45 +90,33 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: in
 
     payload = {
         "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are SkillBridge AI, a practical career mentor and job-safety analyst. "
-                    "Give clear, detailed, structured, and actionable responses strictly relevant to the user's input."
-                ),
-            },
-            {"role": "user", "content": prompt},
-        ],
+        "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.4,
+        "max_tokens": 1200,
     }
-
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {api_key}",
         "User-Agent": "SkillBridgeAI/1.0",
     }
 
-    last_error = None
-    for attempt in range(retries + 1):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"].strip()
+    except urllib.error.HTTPError as e:
+        err_body = ""
         try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                return data["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            last_error = e
-            if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error
-
-    raise RuntimeError("AI request failed")
+            err_body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        raise RuntimeError(f"{provider.upper()} HTTP {e.code}: {err_body[:200] or e.reason}")
 
 
 def call_ai(prompt: str, api_key: str, provider: str) -> str:
@@ -169,10 +131,10 @@ def fallback_roadmap(target_role: str, exp_level: str) -> str:
     return f"""
 ### 12-Week Roadmap: {clean_role} ({exp_level})
 
-1. **Weeks 1–3 (Foundations):** Learn core fundamentals, terminology, rules/concepts, and primary tools for **{clean_role}**.
-2. **Weeks 4–6 (Core Practice):** Practice hands-on exercises and build foundational tasks in **{clean_role}**.
-3. **Weeks 7–9 (Applied & Edge Cases):** Handle real-world scenarios, error fixing, and quality/safety standards.
-4. **Weeks 10–12 (Capstone & Readiness):** Complete 2 practical projects/assessments and prepare for interviews or real-world execution.
+1. **Weeks 1–3 (Foundations):** Core concepts, terminology, rules, and basic tools for **{clean_role}**.
+2. **Weeks 4–6 (Core Practice):** Hands-on exercises and foundational tasks in **{clean_role}**.
+3. **Weeks 7–9 (Real-World Scenarios):** Practical problem solving, common mistakes, and quality/safety standards.
+4. **Weeks 10–12 (Capstone & Readiness):** Complete 2 practical projects/assessments and prepare for interviews or real-world work.
 """
 
 
@@ -187,10 +149,9 @@ def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | No
         )
 
     prompt = (
-        f"Create a clear, detailed 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
-        f"Keep it strictly relevant to '{clean_role}' (do not force unrelated software jargon if it is a non-tech/practical course). "
-        f"Include: Overview, Key Skills/Tools, Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12 milestones, "
-        f"2 practical projects/exercises, and an interview/readiness checklist."
+        f"Give a concise, structured 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
+        f"Keep it strictly relevant to '{clean_role}'. Include: Overview, Core Skills/Tools, "
+        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects/tasks, and a short checklist."
     )
 
     try:
@@ -201,16 +162,16 @@ def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | No
 
 with tab1:
     st.subheader("Custom Career Roadmap Generator")
-    st.write("Enter any target role or course to generate a detailed AI-powered roadmap.")
+    st.write("Enter any target role or course to generate a roadmap.")
 
     role = st.text_input(
-        "Target Role / Course (e.g., Full-Stack Developer, Python Developer, Embedded Systems, Driving):",
+        "Target Role / Course:",
         value="Full-Stack Developer",
     )
     level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
     if st.button("Generate Roadmap"):
-        with st.spinner("Generating roadmap with Gemini..."):
+        with st.spinner("Generating roadmap..."):
             roadmap_text, notice = generate_roadmap_ai(role, level)
 
         if notice:
@@ -267,12 +228,11 @@ def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
         )
 
     prompt = (
-        "Analyze the following job posting, internship offer, or recruiter message for job scam signs. "
-        "Provide:\n"
-        "1. **Risk Level** (Low / Medium / High) and short summary\n"
-        "2. **Red Flags & Signals** found in the text\n"
-        "3. **Safe Next Steps** to verify legitimacy\n\n"
-        f"Text to analyze:\n{job_text}"
+        "Analyze this job post or recruiter message for scam signs. Give:\n"
+        "1. Risk Level (Low / Medium / High) & short summary\n"
+        "2. Red Flags\n"
+        "3. Verification Steps\n\n"
+        f"Text:\n{job_text}"
     )
 
     try:
@@ -288,7 +248,7 @@ def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
 
 with tab2:
     st.subheader("Job Scam Detector")
-    st.write("Paste a job post, offer letter text, or recruiter message for AI-powered scam analysis.")
+    st.write("Paste a job post or recruiter message for scam analysis.")
 
     job_input = st.text_area(
         "Job Posting / Recruiter Message:",
@@ -300,7 +260,7 @@ with tab2:
         if not job_input.strip():
             st.warning("Please paste a job posting or message first.")
         else:
-            with st.spinner("Analyzing with Gemini..."):
+            with st.spinner("Analyzing job posting..."):
                 result_md, notice = analyze_scam_ai(job_input)
 
             if notice:
