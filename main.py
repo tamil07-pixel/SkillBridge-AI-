@@ -1,4 +1,4 @@
-# SkillBridge AI - Auto Retry for 503 Load Spikes
+# SkillBridge AI - Timeout Fix Edition
 import json
 import os
 import re
@@ -38,14 +38,14 @@ def get_ai_provider() -> tuple[str | None, str]:
     return None, "none"
 
 
-def call_gemini(prompt: str, api_key: str, retries: int = 3) -> str:
+def call_gemini(prompt: str, api_key: str, retries: int = 1) -> str:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-3.8-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1200},
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 900},
     }
     headers = {
         "Content-Type": "application/json",
@@ -61,7 +61,7 @@ def call_gemini(prompt: str, api_key: str, retries: int = 3) -> str:
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 candidates = data.get("candidates", [])
                 if not candidates:
@@ -79,20 +79,20 @@ def call_gemini(prompt: str, api_key: str, retries: int = 3) -> str:
                 pass
             last_error = RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
             if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(2.0 * (attempt + 1))
+                time.sleep(1.5)
                 continue
             raise last_error
         except Exception as e:
             last_error = e
             if attempt < retries:
-                time.sleep(2.0 * (attempt + 1))
+                time.sleep(1.5)
                 continue
             raise last_error
 
     raise last_error or RuntimeError("Gemini request failed")
 
 
-def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: int = 2) -> str:
+def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: int = 1) -> str:
     if provider == "groq":
         url = "https://api.groq.com/openai/v1/chat/completions"
         model = "llama-3.3-70b-versatile"
@@ -107,7 +107,7 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: in
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.4,
-        "max_tokens": 1200,
+        "max_tokens": 900,
     }
     headers = {
         "Content-Type": "application/json",
@@ -124,7 +124,7 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: in
                 headers=headers,
                 method="POST",
             )
-            with urllib.request.urlopen(req, timeout=20) as resp:
+            with urllib.request.urlopen(req, timeout=45) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return data["choices"][0]["message"]["content"].strip()
         except urllib.error.HTTPError as e:
@@ -135,13 +135,13 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: in
                 pass
             last_error = RuntimeError(f"{provider.upper()} HTTP {e.code}: {err_body[:200] or e.reason}")
             if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(2.0 * (attempt + 1))
+                time.sleep(1.5)
                 continue
             raise last_error
         except Exception as e:
             last_error = e
             if attempt < retries:
-                time.sleep(2.0 * (attempt + 1))
+                time.sleep(1.5)
                 continue
             raise last_error
 
@@ -178,9 +178,9 @@ def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | No
         )
 
     prompt = (
-        f"Give a concise, structured 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
-        f"Keep it strictly relevant to '{clean_role}'. Include: Overview, Core Skills/Tools, "
-        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects/tasks, and a short checklist."
+        f"Give a crisp, well-structured 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
+        f"Keep it strictly relevant to '{clean_role}'. Include: Overview, Key Skills/Tools, "
+        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects, and a short checklist."
     )
 
     try:
