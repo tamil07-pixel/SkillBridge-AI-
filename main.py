@@ -9,7 +9,6 @@ st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector"
 
 tab1, tab2 = st.tabs(["🗺️ Career Roadmap Generator", "🛡️ Job Scam Detector"])
 
-
 # -------------------- TAB 1: CAREER ROADMAP GENERATOR --------------------
 DETAILED_ROLES = {
     "full_stack": {
