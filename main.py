@@ -1,7 +1,8 @@
-# SkillBridge AI - Fast & Safe Edition
+# SkillBridge AI - Auto Retry for 503 Load Spikes
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 import streamlit as st
@@ -37,7 +38,7 @@ def get_ai_provider() -> tuple[str | None, str]:
     return None, "none"
 
 
-def call_gemini(prompt: str, api_key: str) -> str:
+def call_gemini(prompt: str, api_key: str, retries: int = 3) -> str:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-3.8-flash:generateContent?key={api_key}"
@@ -51,33 +52,47 @@ def call_gemini(prompt: str, api_key: str) -> str:
         "User-Agent": "SkillBridgeAI/1.0",
     }
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            candidates = data.get("candidates", [])
-            if not candidates:
-                raise RuntimeError("Empty response from Gemini API")
-            parts = candidates[0].get("content", {}).get("parts", [])
-            text_out = "".join(p.get("text", "") for p in parts).strip()
-            if not text_out:
-                raise RuntimeError("No text returned by Gemini API")
-            return text_out
-    except urllib.error.HTTPError as e:
-        err_body = ""
+    last_error = None
+    for attempt in range(retries + 1):
         try:
-            err_body = e.read().decode("utf-8", errors="ignore")
-        except Exception:
-            pass
-        raise RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    raise RuntimeError("Empty response from Gemini API")
+                parts = candidates[0].get("content", {}).get("parts", [])
+                text_out = "".join(p.get("text", "") for p in parts).strip()
+                if not text_out:
+                    raise RuntimeError("No text returned by Gemini API")
+                return text_out
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+            last_error = RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
+            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            raise last_error
+        except Exception as e:
+            last_error = e
+            if attempt < retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            raise last_error
+
+    raise last_error or RuntimeError("Gemini request failed")
 
 
-def call_openai_compatible(prompt: str, api_key: str, provider: str) -> str:
+def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: int = 2) -> str:
     if provider == "groq":
         url = "https://api.groq.com/openai/v1/chat/completions"
         model = "llama-3.3-70b-versatile"
@@ -100,23 +115,37 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str) -> str:
         "User-Agent": "SkillBridgeAI/1.0",
     }
 
-    req = urllib.request.Request(
-        url,
-        data=json.dumps(payload).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            return data["choices"][0]["message"]["content"].strip()
-    except urllib.error.HTTPError as e:
-        err_body = ""
+    last_error = None
+    for attempt in range(retries + 1):
         try:
-            err_body = e.read().decode("utf-8", errors="ignore")
-        except Exception:
-            pass
-        raise RuntimeError(f"{provider.upper()} HTTP {e.code}: {err_body[:200] or e.reason}")
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data["choices"][0]["message"]["content"].strip()
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+            last_error = RuntimeError(f"{provider.upper()} HTTP {e.code}: {err_body[:200] or e.reason}")
+            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            raise last_error
+        except Exception as e:
+            last_error = e
+            if attempt < retries:
+                time.sleep(2.0 * (attempt + 1))
+                continue
+            raise last_error
+
+    raise last_error or RuntimeError("AI request failed")
 
 
 def call_ai(prompt: str, api_key: str, provider: str) -> str:
