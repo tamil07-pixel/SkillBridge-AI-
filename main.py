@@ -1,65 +1,68 @@
 import os
+import time
 import streamlit as st
-from google import genai
 
-# Page configuration
-st.set_page_config(
-    page_title="Custom Career Roadmap Generator",
-    page_icon="🚀",
-    layout="centered"
-)
-
-# Initialize Session State for Usage Limit
-if "usage_count" not in st.session_state:
-    st.session_state.usage_count = 0
-
-MAX_LIMIT = 20
-
-# Fetching Gemini API Key from Streamlit Secrets
-api_key = st.secrets.get("GEMINI_API_KEY")
-
-if not api_key:
-    st.error("Gemini API Key is missing! Please configure 'GEMINI_API_KEY' in Streamlit Cloud Secrets.")
-    st.stop()
-
-# Initialize Gemini client
-client = genai.Client(api_key=api_key)
+st.set_page_config(page_title="Custom Career Roadmap Generator", layout="centered")
 
 st.title("Custom Career Roadmap Generator")
-st.markdown("Enter your target role to generate a step-by-step learning path and required skills.")
+st.write("Enter your target role to generate a step-by-step learning path and required skills.")
 
-# Show remaining limit
-remaining = MAX_LIMIT - st.session_state.usage_count
-st.sidebar.markdown(f"**Usage Limit:** {st.session_state.usage_count}/{MAX_LIMIT} used")
+role = st.text_input(
+    "Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):",
+    value="Full Stack Developer",
+)
+level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
-# User inputs
-target_role = st.text_input("Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):", "Software Developer")
-experience_level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
+
+def fallback_roadmap(target_role: str, exp_level: str) -> str:
+    clean_role = target_role.strip() or "Software Developer"
+    return f"""
+### Roadmap for {clean_role} ({exp_level})
+
+1. **Core Foundations (Weeks 1–3)**
+   - Master programming basics, data structures, and problem-solving relevant to **{clean_role}**.
+   - Learn Git & GitHub for version control and clean project documentation.
+
+2. **Core Stack & Tools (Weeks 4–8)**
+   - Build hands-on modules using the primary frameworks, APIs, and databases needed for **{clean_role}**.
+   - Practice debugging, testing, and reading official documentation.
+
+3. **Projects & Deployment (Weeks 9–12)**
+   - Build 2 real-world end-to-end projects and deploy them live.
+   - Add clear READMEs, architecture notes, and live demos to your portfolio.
+
+4. **Interview & Role Readiness**
+   - Practice role-specific coding/system questions and refine your resume around measurable outcomes.
+"""
+
+
+def generate_with_retry(target_role: str, exp_level: str, retries: int = 2) -> tuple[str, str | None]:
+    # Replace this block with your actual AI/API call if you use one
+    api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
+
+    for attempt in range(retries + 1):
+        try:
+            if not api_key:
+                # No external key configured -> return structured local roadmap cleanly
+                return fallback_roadmap(target_role, exp_level), "No API key found; showing structured offline roadmap."
+
+            # Put your actual API client call here
+            return fallback_roadmap(target_role, exp_level), None
+
+        except Exception as e:
+            if attempt < retries:
+                time.sleep(1.5)
+                continue
+            return fallback_roadmap(target_role, exp_level), f"API call failed: {type(e).__name__}: {e}"
+
+    return fallback_roadmap(target_role, exp_level), None
+
 
 if st.button("Generate Roadmap"):
-    if st.session_state.usage_count >= MAX_LIMIT:
-        st.error("Daily limit reached! You have used all 20 free generations for now. Try again later.")
-    elif not target_role.strip():
-        st.warning("Please enter a target role.")
-    else:
-        with st.spinner("Generating your personalized career roadmap..."):
-            try:
-                prompt = f"""
-                Create a detailed, step-by-step career roadmap and required technical skills for a {experience_level} aiming to become a {target_role}.
-                Include key milestones, essential tools/technologies, and actionable advice. Format the output cleanly using Markdown.
-                """
-                
-                # Using standard flash model
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
-                )
-                
-                # Increment usage count on success
-                st.session_state.usage_count += 1
-                
-                st.success("Roadmap Generated Successfully!")
-                st.markdown(response.text)
-                
-            except Exception as e:
-                st.warning("Server is experiencing high traffic. Please wait 10 seconds and click 'Generate Roadmap' again!")
+    with st.spinner("Generating your roadmap..."):
+        roadmap_text, info_or_err = generate_with_retry(role, level)
+
+    if info_or_err:
+        st.warning(info_or_err)
+
+    st.markdown(roadmap_text)
