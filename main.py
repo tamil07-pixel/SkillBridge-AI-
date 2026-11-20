@@ -1,4 +1,4 @@
-# SkillBridge AI - Main Entry
+# SkillBridge AI - Gemini API Edition
 import json
 import os
 import re
@@ -15,31 +15,113 @@ st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector"
 tab1, tab2 = st.tabs(["🗺️ Career Roadmap Generator", "🛡️ Job Scam Detector"])
 
 
-def get_openai_key() -> str | None:
-    env_key = os.getenv("OPENAI_API_KEY")
-    if env_key and env_key.strip():
-        return env_key.strip()
+def get_ai_provider() -> tuple[str | None, str]:
+    providers = [
+        ("GEMINI_API_KEY", "gemini"),
+        ("GROQ_API_KEY", "groq"),
+        ("OPENROUTER_API_KEY", "openrouter"),
+        ("OPENAI_API_KEY", "openai"),
+    ]
+    for key_name, provider in providers:
+        env_val = os.getenv(key_name)
+        if env_val and env_val.strip():
+            return env_val.strip(), provider
 
     try:
-        secret_key = st.secrets.get("OPENAI_API_KEY", None)
-        if secret_key and str(secret_key).strip():
-            return str(secret_key).strip()
+        for key_name, provider in providers:
+            sec_val = st.secrets.get(key_name, None)
+            if sec_val and str(sec_val).strip():
+                return str(sec_val).strip(), provider
     except Exception:
         pass
 
-    return None
+    return None, "none"
 
 
-def call_openai(prompt: str, api_key: str, retries: int = 2) -> str:
-    url = "https://api.openai.com/v1/chat/completions"
+def call_gemini(prompt: str, api_key: str, retries: int = 2) -> str:
+    url = (
+        "https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.5-flash:generateContent?key={api_key}"
+    )
     payload = {
-        "model": "gpt-4o-mini",
+        "system_instruction": {
+            "parts": [
+                {
+                    "text": (
+                        "You are SkillBridge AI, a practical career mentor and job-safety analyst. "
+                        "Give clear, detailed, structured, and actionable responses strictly relevant to the user's input."
+                    )
+                }
+            ]
+        },
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.4},
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "SkillBridgeAI/1.0",
+    }
+
+    last_error = None
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    raise RuntimeError("Empty response from Gemini API")
+                parts = candidates[0].get("content", {}).get("parts", [])
+                text_out = "".join(p.get("text", "") for p in parts).strip()
+                if not text_out:
+                    raise RuntimeError("No text returned by Gemini API")
+                return text_out
+        except urllib.error.HTTPError as e:
+            err_body = ""
+            try:
+                err_body = e.read().decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+            last_error = RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
+            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            raise last_error
+        except Exception as e:
+            last_error = e
+            if attempt < retries:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            raise last_error
+
+    raise RuntimeError("Gemini request failed")
+
+
+def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: int = 2) -> str:
+    if provider == "groq":
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        model = "llama-3.3-70b-versatile"
+    elif provider == "openrouter":
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        model = "meta-llama/llama-3.3-70b-instruct:free"
+    else:
+        url = "https://api.openai.com/v1/chat/completions"
+        model = "gpt-4o-mini"
+
+    payload = {
+        "model": model,
         "messages": [
             {
                 "role": "system",
                 "content": (
                     "You are SkillBridge AI, a practical career mentor and job-safety analyst. "
-                    "Give clear, structured, accurate, and actionable responses tailored to the user's exact topic or job post."
+                    "Give clear, detailed, structured, and actionable responses strictly relevant to the user's input."
                 ),
             },
             {"role": "user", "content": prompt},
@@ -65,17 +147,6 @@ def call_openai(prompt: str, api_key: str, retries: int = 2) -> str:
             with urllib.request.urlopen(req, timeout=30) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
                 return data["choices"][0]["message"]["content"].strip()
-        except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-            last_error = RuntimeError(f"OpenAI HTTP {e.code}: {err_body[:200] or e.reason}")
-            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error
         except Exception as e:
             last_error = e
             if attempt < retries:
@@ -83,7 +154,13 @@ def call_openai(prompt: str, api_key: str, retries: int = 2) -> str:
                 continue
             raise last_error
 
-    raise RuntimeError("OpenAI request failed")
+    raise RuntimeError("AI request failed")
+
+
+def call_ai(prompt: str, api_key: str, provider: str) -> str:
+    if provider == "gemini":
+        return call_gemini(prompt, api_key)
+    return call_openai_compatible(prompt, api_key, provider)
 
 
 # -------------------- TAB 1: CAREER ROADMAP GENERATOR --------------------
@@ -93,33 +170,33 @@ def fallback_roadmap(target_role: str, exp_level: str) -> str:
 ### 12-Week Roadmap: {clean_role} ({exp_level})
 
 1. **Weeks 1–3 (Foundations):** Learn core fundamentals, terminology, rules/concepts, and primary tools for **{clean_role}**.
-2. **Weeks 4–6 (Core Practice):** Practice hands-on exercises and build small foundational tasks in **{clean_role}**.
-3. **Weeks 7–9 (Applied & Edge Cases):** Handle real-world scenarios, mistakes/debugging, and quality/safety standards.
+2. **Weeks 4–6 (Core Practice):** Practice hands-on exercises and build foundational tasks in **{clean_role}**.
+3. **Weeks 7–9 (Applied & Edge Cases):** Handle real-world scenarios, error fixing, and quality/safety standards.
 4. **Weeks 10–12 (Capstone & Readiness):** Complete 2 practical projects/assessments and prepare for interviews or real-world execution.
 """
 
 
 def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | None]:
     clean_role = target_role.strip() or "Full-Stack Developer"
-    api_key = get_openai_key()
+    api_key, provider = get_ai_provider()
 
     if not api_key:
         return (
             fallback_roadmap(clean_role, exp_level),
-            "OPENAI_API_KEY not found in Secrets/Environment. Showing fallback roadmap.",
+            "No API key found in Secrets (`GEMINI_API_KEY`). Showing fallback roadmap.",
         )
 
     prompt = (
         f"Create a clear, detailed 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
-        f"Keep it strictly relevant to '{clean_role}' (do not force unrelated software jargon if it's a non-tech/practical course). "
+        f"Keep it strictly relevant to '{clean_role}' (do not force unrelated software jargon if it is a non-tech/practical course). "
         f"Include: Overview, Key Skills/Tools, Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12 milestones, "
         f"2 practical projects/exercises, and an interview/readiness checklist."
     )
 
     try:
-        return call_openai(prompt, api_key), None
+        return call_ai(prompt, api_key, provider), None
     except Exception as e:
-        return fallback_roadmap(clean_role, exp_level), f"OpenAI error: {e}"
+        return fallback_roadmap(clean_role, exp_level), f"AI error ({provider}): {e}"
 
 
 with tab1:
@@ -133,7 +210,7 @@ with tab1:
     level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
     if st.button("Generate Roadmap"):
-        with st.spinner("Calling OpenAI to generate your roadmap..."):
+        with st.spinner("Generating roadmap with Gemini..."):
             roadmap_text, notice = generate_roadmap_ai(role, level)
 
         if notice:
@@ -180,13 +257,13 @@ def fallback_scam_check(job_text: str) -> tuple[str, int, list[str]]:
 
 
 def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
-    api_key = get_openai_key()
+    api_key, provider = get_ai_provider()
     if not api_key:
         verdict, score, flags = fallback_scam_check(job_text)
         bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No obvious scam keywords detected."
         return (
             f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{bullets}",
-            "OPENAI_API_KEY not found in Secrets/Environment. Showing offline scan.",
+            "No API key found in Secrets (`GEMINI_API_KEY`). Showing offline scan.",
         )
 
     prompt = (
@@ -199,13 +276,13 @@ def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
     )
 
     try:
-        return call_openai(prompt, api_key), None
+        return call_ai(prompt, api_key, provider), None
     except Exception as e:
         verdict, score, flags = fallback_scam_check(job_text)
         bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No obvious scam keywords detected."
         return (
             f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{bullets}",
-            f"OpenAI error: {e}",
+            f"AI error ({provider}): {e}",
         )
 
 
@@ -223,7 +300,7 @@ with tab2:
         if not job_input.strip():
             st.warning("Please paste a job posting or message first.")
         else:
-            with st.spinner("Calling OpenAI to analyze job posting..."):
+            with st.spinner("Analyzing with Gemini..."):
                 result_md, notice = analyze_scam_ai(job_input)
 
             if notice:
