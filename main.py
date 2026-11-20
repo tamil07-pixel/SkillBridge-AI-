@@ -1,8 +1,7 @@
-# SkillBridge AI - Motivational Emojis Edition
+# SkillBridge AI - Fast Single-Attempt Read Fix
 import json
 import os
 import re
-import time
 import urllib.error
 import urllib.request
 import streamlit as st
@@ -38,61 +37,47 @@ def get_ai_provider() -> tuple[str | None, str]:
     return None, "none"
 
 
-def call_gemini(prompt: str, api_key: str, retries: int = 1) -> str:
+def call_gemini(prompt: str, api_key: str) -> str:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-3.8-flash:generateContent?key={api_key}"
     )
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 900},
+        "generationConfig": {"temperature": 0.4, "maxOutputTokens": 650},
     }
     headers = {
         "Content-Type": "application/json",
         "User-Agent": "SkillBridgeAI/1.0",
     }
 
-    last_error = None
-    for attempt in range(retries + 1):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            candidates = data.get("candidates", [])
+            if not candidates:
+                raise RuntimeError("Empty response from Gemini API")
+            parts = candidates[0].get("content", {}).get("parts", [])
+            text_out = "".join(p.get("text", "") for p in parts).strip()
+            if not text_out:
+                raise RuntimeError("No text returned by Gemini API")
+            return text_out
+    except urllib.error.HTTPError as e:
+        err_body = ""
         try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    raise RuntimeError("Empty response from Gemini API")
-                parts = candidates[0].get("content", {}).get("parts", [])
-                text_out = "".join(p.get("text", "") for p in parts).strip()
-                if not text_out:
-                    raise RuntimeError("No text returned by Gemini API")
-                return text_out
-        except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-            last_error = RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
-            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(1.5)
-                continue
-            raise last_error
-        except Exception as e:
-            last_error = e
-            if attempt < retries:
-                time.sleep(1.5)
-                continue
-            raise last_error
-
-    raise last_error or RuntimeError("Gemini request failed")
+            err_body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        raise RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
 
 
-def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: int = 1) -> str:
+def call_openai_compatible(prompt: str, api_key: str, provider: str) -> str:
     if provider == "groq":
         url = "https://api.groq.com/openai/v1/chat/completions"
         model = "llama-3.3-70b-versatile"
@@ -107,7 +92,7 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: in
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.4,
-        "max_tokens": 900,
+        "max_tokens": 650,
     }
     headers = {
         "Content-Type": "application/json",
@@ -115,37 +100,23 @@ def call_openai_compatible(prompt: str, api_key: str, provider: str, retries: in
         "User-Agent": "SkillBridgeAI/1.0",
     }
 
-    last_error = None
-    for attempt in range(retries + 1):
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            return data["choices"][0]["message"]["content"].strip()
+    except urllib.error.HTTPError as e:
+        err_body = ""
         try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=45) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                return data["choices"][0]["message"]["content"].strip()
-        except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-            last_error = RuntimeError(f"{provider.upper()} HTTP {e.code}: {err_body[:200] or e.reason}")
-            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(1.5)
-                continue
-            raise last_error
-        except Exception as e:
-            last_error = e
-            if attempt < retries:
-                time.sleep(1.5)
-                continue
-            raise last_error
-
-    raise last_error or RuntimeError("AI request failed")
+            err_body = e.read().decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+        raise RuntimeError(f"{provider.upper()} HTTP {e.code}: {err_body[:200] or e.reason}")
 
 
 def call_ai(prompt: str, api_key: str, provider: str) -> str:
@@ -180,10 +151,10 @@ def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | No
         )
 
     prompt = (
-        f"Give a crisp, well-structured, encouraging 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
-        f"Use relevant motivational emojis (such as 🎯, 🚀, 💪, 🔥, 🌱, 🏆, ✨) naturally across headings and milestones. "
-        f"Keep it strictly relevant to '{clean_role}'. Include: Overview, Key Skills/Tools, "
-        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects, a short checklist, and a brief motivating closing line."
+        f"Give a concise, encouraging 12-week roadmap for '{clean_role}' at '{exp_level}' level "
+        f"with motivational emojis (🎯, 🚀, 💪, 🔥, 🌱, 🏆, ✨). "
+        f"Keep it strictly relevant to '{clean_role}'. Include: Overview, Core Skills/Tools, "
+        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects, checklist, and 1 motivating closing line."
     )
 
     try:
@@ -260,10 +231,10 @@ def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
         )
 
     prompt = (
-        "Analyze this job post or recruiter message for scam signs in an encouraging, clear tone with supportive emojis (🛡️, 🔍, 🚨, ✅, 💪). Give:\n"
+        "Analyze this job post or recruiter message for scam signs in an encouraging tone with emojis (🛡️, 🔍, 🚨, ✅, 💪). Give:\n"
         "1. Risk Level (Low / Medium / High) & short summary\n"
         "2. Red Flags\n"
-        "3. Verification Steps & a short encouraging safety note\n\n"
+        "3. Verification Steps & 1 short encouraging safety note\n\n"
         f"Text:\n{job_text}"
     )
 
