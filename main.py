@@ -1,8 +1,5 @@
-import os
 import re
 import time
-import urllib.request
-import json
 import streamlit as st
 
 st.set_page_config(page_title="SkillBridge AI", page_icon="🌉", layout="centered")
@@ -11,77 +8,6 @@ st.title("SkillBridge AI")
 st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector")
 
 tab1, tab2 = st.tabs(["🗺️ Career Roadmap Generator", "🛡️ Job Scam Detector"])
-
-
-def get_api_config() -> tuple[str | None, str]:
-    """Returns (api_key, provider) checking env vars first, then st.secrets."""
-    keys_to_check = [
-        ("GROQ_API_KEY", "groq"),
-        ("OPENAI_API_KEY", "openai"),
-    ]
-    for env_name, provider in keys_to_check:
-        val = os.getenv(env_name)
-        if val and val.strip():
-            return val.strip(), provider
-
-    try:
-        for secret_name, provider in keys_to_check:
-            val = st.secrets.get(secret_name, None)
-            if val and str(val).strip():
-                return str(val).strip(), provider
-    except Exception:
-        pass
-
-    return None, "none"
-
-
-def call_llm_api(prompt: str, api_key: str, provider: str, retries: int = 2) -> str:
-    """Calls Groq or OpenAI Chat Completions API with basic retry on transient errors."""
-    if provider == "groq":
-        url = "https://api.groq.com/openai/v1/chat/completions"
-        model = "llama-3.3-70b-versatile"
-    else:
-        url = "https://api.openai.com/v1/chat/completions"
-        model = "gpt-4o-mini"
-
-    payload = {
-        "model": model,
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a clear, practical career mentor and job-safety analyst. Give structured, actionable, concise answers."
-            },
-            {"role": "user", "content": prompt},
-        ],
-        "temperature": 0.4,
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}",
-        "User-Agent": "SkillBridgeAI/1.0",
-    }
-
-    last_err = None
-    for attempt in range(retries + 1):
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=25) as resp:
-                body = json.loads(resp.read().decode("utf-8"))
-                return body["choices"][0]["message"]["content"].strip()
-        except Exception as e:
-            last_err = e
-            if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_err
-
-    raise RuntimeError("Unexpected LLM failure")
 
 
 # -------------------- TAB 1: CAREER ROADMAP GENERATOR --------------------
@@ -117,12 +43,12 @@ ROLE_ROADMAPS = {
 }
 
 
-def fallback_roadmap(target_role: str, exp_level: str) -> str:
+def build_roadmap(target_role: str, exp_level: str) -> str:
     clean_role = target_role.strip() or "Full-Stack Developer"
     key_match = next((v for k, v in ROLE_ROADMAPS.items() if k in clean_role.lower()), None)
 
     if key_match:
-        stack_line = f"**Core Tech Stack:** `{key_match['stack']}`\n\n"
+        stack_line = f"**Recommended Stack:** `{key_match['stack']}`\n\n"
         p1, p2, p3, p4 = key_match["w1"], key_match["w2"], key_match["w3"], key_match["w4"]
     else:
         stack_line = ""
@@ -140,30 +66,29 @@ def fallback_roadmap(target_role: str, exp_level: str) -> str:
 """
 
 
-def generate_roadmap(target_role: str, exp_level: str) -> tuple[str, str | None]:
-    clean_role = target_role.strip() or "Full-Stack Developer"
-    api_key, provider = get_api_config()
+def run_simulated_roadmap(target_role: str, exp_level: str) -> str:
+    status = st.empty()
+    progress = st.progress(0)
 
-    if not api_key:
-        return fallback_roadmap(clean_role, exp_level), "No API key found (`GROQ_API_KEY` or `OPENAI_API_KEY`); showing offline roadmap."
+    steps = [
+        (25, "Initializing SkillBridge roadmap engine..."),
+        (55, "Mapping skills and learning phases..."),
+        (85, "Structuring projects and interview milestones..."),
+        (100, "Roadmap ready!"),
+    ]
+    for pct, msg in steps:
+        status.info(msg)
+        progress.progress(pct)
+        time.sleep(0.35)
 
-    prompt = (
-        f"Create a clear, structured 12-week career roadmap for the role '{clean_role}' "
-        f"at '{exp_level}' experience level. Include: recommended tech stack/tools, "
-        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12 milestones, 2 practical project ideas, "
-        f"and key interview topics."
-    )
-
-    try:
-        ai_text = call_llm_api(prompt, api_key, provider)
-        return ai_text, None
-    except Exception as e:
-        return fallback_roadmap(clean_role, exp_level), f"AI request failed ({type(e).__name__}: {e}). Showing offline roadmap."
+    status.empty()
+    progress.empty()
+    return build_roadmap(target_role, exp_level)
 
 
 with tab1:
     st.subheader("Custom Career Roadmap Generator")
-    st.write("Enter any target role or course to generate a clear step-by-step roadmap.")
+    st.write("Enter your target role to generate a clear step-by-step roadmap.")
 
     role = st.text_input(
         "Target Role (e.g., Full-Stack Developer, Python Developer, Embedded Systems Engineer):",
@@ -172,17 +97,27 @@ with tab1:
     level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
     if st.button("Generate Roadmap"):
-        with st.spinner("Generating your roadmap..."):
-            roadmap_text, notice = generate_roadmap(role, level)
-
-        if notice:
-            st.warning(notice)
-
+        roadmap_text = run_simulated_roadmap(role, level)
         st.markdown(roadmap_text)
 
 
 # -------------------- TAB 2: JOB SCAM DETECTOR --------------------
-def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
+def analyze_job_simulated(job_text: str) -> tuple[str, int, list[str]]:
+    status = st.empty()
+    progress = st.progress(0)
+
+    for pct, msg in [
+        (30, "Scanning job posting text..."),
+        (70, "Checking payment, contact, and urgency patterns..."),
+        (100, "Analysis complete!"),
+    ]:
+        status.info(msg)
+        progress.progress(pct)
+        time.sleep(0.3)
+
+    status.empty()
+    progress.empty()
+
     text = job_text.lower()
     score = 0
     red_flags = []
@@ -218,31 +153,6 @@ def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
     return verdict, score, red_flags
 
 
-def analyze_job_with_ai(job_text: str) -> tuple[str, str | None]:
-    api_key, provider = get_api_config()
-    if not api_key:
-        verdict, score, flags = analyze_job_offline(job_text)
-        flag_bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No strong scam keywords detected."
-        out = f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{flag_bullets}"
-        return out, "No API key found; showing offline scam check."
-
-    prompt = (
-        "Analyze this job posting or recruiter message for potential job scam red flags. "
-        "Provide: 1) Risk Level (Low / Medium / High), 2) Key Red Flags or Positive Signals, "
-        "3) Practical Verification Steps before sharing details or applying.\n\n"
-        f"Job Posting:\n{job_text}"
-    )
-
-    try:
-        ai_analysis = call_llm_api(prompt, api_key, provider)
-        return ai_analysis, None
-    except Exception as e:
-        verdict, score, flags = analyze_job_offline(job_text)
-        flag_bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No strong scam keywords detected."
-        out = f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{flag_bullets}"
-        return out, f"AI check failed ({type(e).__name__}); showing offline scam check."
-
-
 with tab2:
     st.subheader("Job Scam Detector")
     st.write("Paste a job post, offer message, or recruiter email to check for scam signs.")
@@ -257,10 +167,20 @@ with tab2:
         if not job_input.strip():
             st.warning("Please paste a job posting or message first.")
         else:
-            with st.spinner("Analyzing job posting..."):
-                result_md, notice = analyze_job_with_ai(job_input)
+            verdict, risk_score, flags = analyze_job_simulated(job_input)
 
-            if notice:
-                st.warning(notice)
+            if risk_score >= 50:
+                st.error(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            elif risk_score >= 20:
+                st.warning(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            else:
+                st.success(f"**{verdict}** (Risk Score: {risk_score}/100)")
 
-            st.markdown(result_md)
+            if flags:
+                st.markdown("**Detected Red Flags:**")
+                for flag in flags:
+                    st.markdown(f"- {flag}")
+            else:
+                st.markdown("- No obvious scam keywords or payment traps detected.")
+
+            st.info("Tip: Never pay money for offer letters, laptops, or onboarding, and always verify the recruiter on the company's official career page.")
