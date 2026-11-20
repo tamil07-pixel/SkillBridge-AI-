@@ -1,4 +1,4 @@
-# SkillBridge AI - Gemini API Edition
+# SkillBridge AI - Gemini 3.8 Flash Edition
 import json
 import os
 import re
@@ -37,74 +37,11 @@ def get_ai_provider() -> tuple[str | None, str]:
 
     return None, "none"
 
+
 def call_gemini(prompt: str, api_key: str, retries: int = 2) -> str:
     url = (
         "https://generativelanguage.googleapis.com/v1beta/models/"
         f"gemini-3.8-flash:generateContent?key={api_key}"
-    )
-    payload = {
-        "system_instruction": {
-            "parts": [
-                {
-                    "text": (
-                        "You are SkillBridge AI, a practical career mentor and job-safety analyst. "
-                        "Give clear, detailed, structured, and actionable responses strictly relevant to the user's input."
-                    )
-                }
-            ]
-        },
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.4},
-    }
-
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "SkillBridgeAI/1.0",
-    }
-
-    last_error = None
-    for attempt in range(retries + 1):
-        try:
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers=headers,
-                method="POST",
-            )
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                candidates = data.get("candidates", [])
-                if not candidates:
-                    raise RuntimeError("Empty response from Gemini API")
-                parts = candidates[0].get("content", {}).get("parts", [])
-                text_out = "".join(p.get("text", "") for p in parts).strip()
-                if not text_out:
-                    raise RuntimeError("No text returned by Gemini API")
-                return text_out
-        except urllib.error.HTTPError as e:
-            err_body = ""
-            try:
-                err_body = e.read().decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-            last_error = RuntimeError(f"Gemini HTTP {e.code}: {err_body[:200] or e.reason}")
-            if e.code in (429, 500, 502, 503, 504) and attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error
-        except Exception as e:
-            last_error = e
-            if attempt < retries:
-                time.sleep(1.5 * (attempt + 1))
-                continue
-            raise last_error
-
-    raise RuntimeError("Gemini request failed")
-
-def call_gemini(prompt: str, api_key: str, retries: int = 2) -> str:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-2.5-flash:generateContent?key={api_key}"
     )
     payload = {
         "system_instruction": {
