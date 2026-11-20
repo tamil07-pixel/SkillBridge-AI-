@@ -1,6 +1,8 @@
 import os
 import re
 import time
+import urllib.request
+import json
 import streamlit as st
 
 st.set_page_config(page_title="SkillBridge AI", page_icon="🌉", layout="centered")
@@ -11,207 +13,166 @@ st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector"
 tab1, tab2 = st.tabs(["🗺️ Career Roadmap Generator", "🛡️ Job Scam Detector"])
 
 
+def get_api_config() -> tuple[str | None, str]:
+    """Returns (api_key, provider) checking env vars first, then st.secrets."""
+    keys_to_check = [
+        ("GROQ_API_KEY", "groq"),
+        ("OPENAI_API_KEY", "openai"),
+    ]
+    for env_name, provider in keys_to_check:
+        val = os.getenv(env_name)
+        if val and val.strip():
+            return val.strip(), provider
+
+    try:
+        for secret_name, provider in keys_to_check:
+            val = st.secrets.get(secret_name, None)
+            if val and str(val).strip():
+                return str(val).strip(), provider
+    except Exception:
+        pass
+
+    return None, "none"
+
+
+def call_llm_api(prompt: str, api_key: str, provider: str, retries: int = 2) -> str:
+    """Calls Groq or OpenAI Chat Completions API with basic retry on transient errors."""
+    if provider == "groq":
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        model = "llama-3.3-70b-versatile"
+    else:
+        url = "https://api.openai.com/v1/chat/completions"
+        model = "gpt-4o-mini"
+
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a clear, practical career mentor and job-safety analyst. Give structured, actionable, concise answers."
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0.4,
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+        "User-Agent": "SkillBridgeAI/1.0",
+    }
+
+    last_err = None
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=25) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                return body["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            last_err = e
+            if attempt < retries:
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            raise last_err
+
+    raise RuntimeError("Unexpected LLM failure")
+
+
 # -------------------- TAB 1: CAREER ROADMAP GENERATOR --------------------
 ROLE_ROADMAPS = {
     "full stack": {
-        "title": "Full-Stack Developer",
         "stack": "HTML5, CSS3, JavaScript (ES6+), React, Python (FastAPI) / Node.js (Express), PostgreSQL / MongoDB, Git, Docker",
-        "weeks_1_3": [
-            "Master semantic HTML5, responsive CSS (Flexbox, Grid), and modern JavaScript (async/await, DOM, fetch API).",
-            "Learn Git & GitHub workflows (branching, pull requests, clean commit messages).",
-            "Build a responsive portfolio website and an interactive task/expense tracker."
-        ],
-        "weeks_4_6": [
-            "Learn React: components, props, state, hooks (`useState`, `useEffect`), routing, and API integration.",
-            "Build a frontend dashboard consuming a public REST API with search, filters, and error states."
-        ],
-        "weeks_7_9": [
-            "Build REST APIs using FastAPI (Python) or Node.js + Express with JWT authentication and input validation.",
-            "Design schemas and CRUD queries in PostgreSQL or MongoDB."
-        ],
-        "weeks_10_12": [
-            "Build and deploy 2 full-stack projects (e.g., Job Tracker with Auth + AI Resume/Scam Analyzer).",
-            "Add unit/API tests, environment variable security, and deploy on Render/Vercel/Streamlit."
-        ],
-        "interview": "Practice JavaScript closures/promises, REST API design, SQL joins/indexing, and explain your project architecture."
+        "w1": "Master HTML5, CSS3 (Flexbox/Grid), JavaScript (async/await, DOM, fetch), and Git/GitHub.",
+        "w2": "Build React UIs (hooks, state, routing) and consume REST APIs cleanly.",
+        "w3": "Build backend APIs (FastAPI or Node/Express), auth, and SQL/NoSQL databases.",
+        "w4": "Build & deploy 2 end-to-end projects, write clear READMEs, and practice role interviews.",
     },
     "python": {
-        "title": "Python Developer",
-        "stack": "Python 3, OOP, FastAPI / Django, SQLAlchemy, PostgreSQL, Pytest, Docker, Git",
-        "weeks_1_3": [
-            "Master Python data structures, list/dict comprehensions, file handling, decorators, and OOP principles.",
-            "Solve 40+ array, string, hashing, and recursion problems to build strong logic."
-        ],
-        "weeks_4_6": [
-            "Build production-grade REST APIs using FastAPI with Pydantic validation and async endpoints.",
-            "Connect Python apps to PostgreSQL/SQLite using SQLAlchemy ORM."
-        ],
-        "weeks_7_9": [
-            "Write automated tests using `pytest`, handle logging, rate limiting, and background tasks.",
-            "Work with external APIs, JSON/CSV automation scripts, and environment configs."
-        ],
-        "weeks_10_12": [
-            "Build 2 complete backend/automation projects, containerize with Docker, and deploy live.",
-            "Write clear API documentation (Swagger/OpenAPI) and GitHub READMEs."
-        ],
-        "interview": "Revise Python memory management, GIL, decorators, generators, SQL optimization, and API security."
+        "stack": "Python 3, OOP, FastAPI / Django, SQLAlchemy, PostgreSQL, Pytest, Git, Docker",
+        "w1": "Master Python data structures, OOP, file/exception handling, and core problem-solving.",
+        "w2": "Build REST APIs with FastAPI + Pydantic validation and database models.",
+        "w3": "Add automated tests (pytest), logging, error handling, and external API integrations.",
+        "w4": "Deploy 2 backend/automation projects with clean docs and interview prep.",
     },
     "embedded": {
-        "title": "Embedded Systems & IoT Engineer",
-        "stack": "Embedded C/C++, ARM Cortex / ESP32 / STM32, UART/SPI/I2C, RTOS, Python, MQTT, Linux Basics",
-        "weeks_1_3": [
-            "Master Embedded C (pointers, bitwise operations, memory layout, volatile keyword, interrupts).",
-            "Work with GPIO, timers, ADC/PWM on ESP32 or STM32."
-        ],
-        "weeks_4_6": [
-            "Implement communication protocols: UART, I2C, SPI, and CAN bus with real sensors.",
-            "Debug hardware-software issues using serial monitors and logic analyzers."
-        ],
-        "weeks_7_9": [
-            "Learn FreeRTOS basics (tasks, queues, semaphores, mutexes) for real-time scheduling.",
-            "Connect devices to cloud dashboards via Wi-Fi/MQTT and Python FastAPI backends."
-        ],
-        "weeks_10_12": [
-            "Build an end-to-end hardware + cloud project (e.g., Smart Telemetry / V2V / Sensor Alert System).",
-            "Document circuit diagrams, firmware flowcharts, and demo videos on GitHub."
-        ],
-        "interview": "Prepare C pointers/memory questions, interrupt latency, I2C vs SPI, RTOS task synchronization, and register-level debugging."
+        "stack": "Embedded C/C++, ESP32 / STM32 / ARM, UART/SPI/I2C, FreeRTOS, MQTT, Python",
+        "w1": "Master Embedded C (pointers, bitwise ops, volatile, interrupts) and GPIO/ADC/PWM.",
+        "w2": "Work with UART, I2C, and SPI sensors + serial/hardware debugging.",
+        "w3": "Learn FreeRTOS tasks/queues/semaphores and connect devices to cloud/dashboards.",
+        "w4": "Build & document a complete hardware + firmware project with circuit/block diagrams.",
     },
     "data": {
-        "title": "Data Analyst / Data Science",
         "stack": "Python, Pandas, NumPy, SQL, Excel, Power BI / Tableau, Statistics, Scikit-learn",
-        "weeks_1_3": [
-            "Master SQL queries (JOINs, GROUP BY, CTEs, Window Functions) and advanced Excel (Pivot Tables, XLOOKUP).",
-            "Learn descriptive statistics, probability, and hypothesis testing."
-        ],
-        "weeks_4_6": [
-            "Use Python (Pandas, NumPy, Matplotlib/Seaborn) for data cleaning, EDA, and visualization.",
-            "Analyze 3 real-world datasets and document business insights."
-        ],
-        "weeks_7_9": [
-            "Build interactive KPI dashboards in Power BI or Tableau.",
-            "Learn basic machine learning (Regression, Classification, Model Evaluation) with Scikit-learn."
-        ],
-        "weeks_10_12": [
-            "Publish 2 end-to-end case studies combining SQL + Python + Dashboard storytelling.",
-            "Quantify business impact in every project summary."
-        ],
-        "interview": "Practice SQL case studies, A/B testing scenarios, data cleaning edge cases, and dashboard metric definitions."
-    }
+        "w1": "Master SQL (JOINs, GROUP BY, CTEs, window functions), Excel, and statistics.",
+        "w2": "Clean, explore, and visualize datasets using Python (Pandas, Matplotlib/Seaborn).",
+        "w3": "Create interactive BI dashboards and basic ML models/evaluation.",
+        "w4": "Publish 2 data case studies with clear business takeaways and interview practice.",
+    },
 }
 
 
-def build_detailed_roadmap(target_role: str, exp_level: str) -> str:
-    clean_role = target_role.strip() or "Full Stack Developer"
-    role_key = clean_role.lower()
+def fallback_roadmap(target_role: str, exp_level: str) -> str:
+    clean_role = target_role.strip() or "Full-Stack Developer"
+    key_match = next((v for k, v in ROLE_ROADMAPS.items() if k in clean_role.lower()), None)
 
-    matched = None
-    for key, data in ROLE_ROADMAPS.items():
-        if key in role_key:
-            matched = data
-            break
+    if key_match:
+        stack_line = f"**Core Tech Stack:** `{key_match['stack']}`\n\n"
+        p1, p2, p3, p4 = key_match["w1"], key_match["w2"], key_match["w3"], key_match["w4"]
+    else:
+        stack_line = ""
+        p1 = f"Learn core fundamentals, terminology, and key tools required for **{clean_role}**."
+        p2 = f"Practice hands-on exercises and build small modules using standard **{clean_role}** tools."
+        p3 = f"Learn workflows, debugging, testing, and best practices used in real **{clean_role}** teams."
+        p4 = f"Build & showcase 2 practical **{clean_role}** projects and prepare for role-specific interviews."
 
-    level_guidance = {
-        "Beginner": "Start from scratch: spend 60% of your time coding hands-on and 40% learning concepts. Avoid tutorial hell by building small features every week.",
-        "Intermediate": "Skip basic syntax: focus on clean architecture, error handling, testing, database optimization, and deploying real projects.",
-        "Advanced": "Focus on system design, scalability, security hardening, CI/CD pipelines, performance profiling, and production observability.",
-    }.get(exp_level, "")
-
-    if matched:
-        w1 = "\n   - ".join(matched["weeks_1_3"])
-        w2 = "\n   - ".join(matched["weeks_4_6"])
-        w3 = "\n   - ".join(matched["weeks_7_9"])
-        w4 = "\n   - ".join(matched["weeks_10_12"])
-
-        return f"""
-### 12-Week Actionable Roadmap: {clean_role} ({exp_level})
-
-**Recommended Tech Stack:** `{matched["stack"]}`
-
-> **Strategy for {exp_level} Level:** {level_guidance}
-
----
-
-#### Phase 1: Foundations & Core Logic (Weeks 1–3)
-   - {w1}
-
-#### Phase 2: Core Frameworks & Integrations (Weeks 4–6)
-   - {w2}
-
-#### Phase 3: Backend, Data & Advanced Workflows (Weeks 7–9)
-   - {w3}
-
-#### Phase 4: Capstone Projects & Deployment (Weeks 10–12)
-   - {w4}
-
-#### Interview & Job Readiness Checklist
-   - {matched["interview"]}
-   - Keep 2 deployed projects with live links, architecture diagrams, and clear READMEs on GitHub.
-"""
-
-    # Custom detailed roadmap for any other role typed by the user
     return f"""
-### 12-Week Actionable Roadmap: {clean_role} ({exp_level})
-
-> **Strategy for {exp_level} Level:** {level_guidance}
-
----
-
-#### Phase 1: Core Fundamentals & Tooling (Weeks 1–3)
-   - Identify the top 4 core tools/languages listed across 15+ job postings for **{clean_role}**.
-   - Master core syntax, problem-solving fundamentals, and Git/GitHub version control.
-   - Build 2 small proof-of-concept scripts/modules to validate basics.
-
-#### Phase 2: Practical Implementation & Workflows (Weeks 4–6)
-   - Learn the primary industry framework/platform used in **{clean_role}** roles.
-   - Practice working with real data, APIs, debugging tools, and error handling.
-   - Build a functional mid-sized project solving a realistic problem.
-
-#### Phase 3: Testing, Optimization & Real-World Standards (Weeks 7–9)
-   - Add automated testing, logging, security best practices, and performance improvements.
-   - Study how production systems for **{clean_role}** are structured and scaled.
-
-#### Phase 4: Portfolio Projects & Interview Prep (Weeks 10–12)
-   - Build and deploy 2 end-to-end portfolio projects tailored to **{clean_role}**.
-   - Document problem statement, architecture, and measurable results in each GitHub README.
-   - Practice role-specific technical questions and mock interviews.
+### 12-Week Roadmap: {clean_role} ({exp_level})
+{stack_line}1. **Weeks 1–3 (Foundations):** {p1}
+2. **Weeks 4–6 (Core Skills):** {p2}
+3. **Weeks 7–9 (Applied & Testing):** {p3}
+4. **Weeks 10–12 (Projects & Prep):** {p4}
 """
 
 
-def generate_roadmap(target_role: str, exp_level: str, retries: int = 1) -> tuple[str, str | None]:
-    api_key = os.getenv("OPENAI_API_KEY")
+def generate_roadmap(target_role: str, exp_level: str) -> tuple[str, str | None]:
+    clean_role = target_role.strip() or "Full-Stack Developer"
+    api_key, provider = get_api_config()
+
     if not api_key:
-        try:
-            api_key = st.secrets.get("OPENAI_API_KEY", None)
-        except Exception:
-            api_key = None
+        return fallback_roadmap(clean_role, exp_level), "No API key found (`GROQ_API_KEY` or `OPENAI_API_KEY`); showing offline roadmap."
 
-    for attempt in range(retries + 1):
-        try:
-            if not api_key:
-                return build_detailed_roadmap(target_role, exp_level), None
-            return build_detailed_roadmap(target_role, exp_level), None
-        except Exception as e:
-            if attempt < retries:
-                time.sleep(1)
-                continue
-            return build_detailed_roadmap(target_role, exp_level), f"Switched to offline roadmap ({type(e).__name__})."
+    prompt = (
+        f"Create a clear, structured 12-week career roadmap for the role '{clean_role}' "
+        f"at '{exp_level}' experience level. Include: recommended tech stack/tools, "
+        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12 milestones, 2 practical project ideas, "
+        f"and key interview topics."
+    )
 
-    return build_detailed_roadmap(target_role, exp_level), None
+    try:
+        ai_text = call_llm_api(prompt, api_key, provider)
+        return ai_text, None
+    except Exception as e:
+        return fallback_roadmap(clean_role, exp_level), f"AI request failed ({type(e).__name__}: {e}). Showing offline roadmap."
 
 
 with tab1:
     st.subheader("Custom Career Roadmap Generator")
-    st.write("Enter your target role to generate a clear, week-by-week learning path, tech stack, and project plan.")
+    st.write("Enter any target role or course to generate a clear step-by-step roadmap.")
 
     role = st.text_input(
-        "Target Role (e.g., Full Stack Developer, Python Developer, Embedded Systems Engineer, Data Analyst):",
-        value="Full Stack Developer",
+        "Target Role (e.g., Full-Stack Developer, Python Developer, Embedded Systems Engineer):",
+        value="Full-Stack Developer",
     )
     level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
     if st.button("Generate Roadmap"):
-        with st.spinner("Building your step-by-step roadmap..."):
+        with st.spinner("Generating your roadmap..."):
             roadmap_text, notice = generate_roadmap(role, level)
 
         if notice:
@@ -228,17 +189,17 @@ def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
 
     scam_patterns = [
         (r"\b(registration fee|security deposit|pay to apply|training fee|processing fee|refundable deposit)\b",
-         "Asks for upfront payment, registration fee, or security deposit (major scam indicator).", 35),
+         "Asks for upfront payment, registration fee, or security deposit.", 35),
         (r"\b(whatsapp|telegram)\b.*\b(contact|message|dm|number)\b|\b(contact|message|dm)\b.*\b(whatsapp|telegram)\b",
-         "Pushes communication to WhatsApp/Telegram instead of an official company email/portal.", 20),
+         "Directs candidates to WhatsApp/Telegram instead of an official hiring portal/email.", 20),
         (r"\b(earn ₹|earn rs|daily payout|weekly payout|guaranteed income|no experience needed.*high salary|part[- ]time.*₹\s?\d{4,})\b",
-         "Promises unrealistic guaranteed income or high pay for zero experience.", 25),
+         "Promises unrealistic pay or guaranteed income with little/no experience.", 25),
         (r"\b(aadhaar|pan card|bank details|otp|cvv|passbook)\b",
-         "Requests sensitive personal or banking documents before an official interview.", 30),
+         "Asks for sensitive ID, banking, or OTP details early in hiring.", 30),
         (r"\b(urgent hiring|limited slots|apply within 1 hour|immediate joining without interview|direct offer letter)\b",
-         "Uses high-pressure urgency or offers a job without any real interview process.", 20),
+         "Uses urgency pressure or skips interviews/verification.", 20),
         (r"@gmail\.com|@yahoo\.com|@outlook\.com",
-         "Uses a free personal email domain instead of an official company domain.", 15),
+         "Uses a free email address instead of a company domain.", 15),
     ]
 
     for pattern, reason, weight in scam_patterns:
@@ -247,46 +208,59 @@ def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
             red_flags.append(reason)
 
     score = min(score, 100)
-
     if score >= 50:
         verdict = "High Risk — Likely a Job Scam"
     elif score >= 20:
-        verdict = "Medium Risk — Verify Carefully Before Applying"
+        verdict = "Medium Risk — Verify Carefully"
     else:
-        verdict = "Low Risk — Looks Legitimate (Still Verify Company Details)"
+        verdict = "Low Risk — Looks Safer (Still Verify Company)"
 
     return verdict, score, red_flags
 
 
+def analyze_job_with_ai(job_text: str) -> tuple[str, str | None]:
+    api_key, provider = get_api_config()
+    if not api_key:
+        verdict, score, flags = analyze_job_offline(job_text)
+        flag_bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No strong scam keywords detected."
+        out = f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{flag_bullets}"
+        return out, "No API key found; showing offline scam check."
+
+    prompt = (
+        "Analyze this job posting or recruiter message for potential job scam red flags. "
+        "Provide: 1) Risk Level (Low / Medium / High), 2) Key Red Flags or Positive Signals, "
+        "3) Practical Verification Steps before sharing details or applying.\n\n"
+        f"Job Posting:\n{job_text}"
+    )
+
+    try:
+        ai_analysis = call_llm_api(prompt, api_key, provider)
+        return ai_analysis, None
+    except Exception as e:
+        verdict, score, flags = analyze_job_offline(job_text)
+        flag_bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No strong scam keywords detected."
+        out = f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{flag_bullets}"
+        return out, f"AI check failed ({type(e).__name__}); showing offline scam check."
+
+
 with tab2:
     st.subheader("Job Scam Detector")
-    st.write("Paste a job description, recruiter message, or offer details to check for scam red flags.")
+    st.write("Paste a job post, offer message, or recruiter email to check for scam signs.")
 
     job_input = st.text_area(
-        "Job Posting / Message:",
+        "Job Posting / Recruiter Message:",
         height=180,
-        placeholder="Paste the job post, salary details, contact info, or recruiter message here...",
+        placeholder="Paste the job description, salary promises, or recruiter message here...",
     )
 
     if st.button("Analyze Job Posting"):
         if not job_input.strip():
-            st.warning("Please paste a job description or message first.")
+            st.warning("Please paste a job posting or message first.")
         else:
-            with st.spinner("Analyzing job details..."):
-                verdict, risk_score, flags = analyze_job_offline(job_input)
+            with st.spinner("Analyzing job posting..."):
+                result_md, notice = analyze_job_with_ai(job_input)
 
-            if risk_score >= 50:
-                st.error(f"**{verdict}** (Risk Score: {risk_score}/100)")
-            elif risk_score >= 20:
-                st.warning(f"**{verdict}** (Risk Score: {risk_score}/100)")
-            else:
-                st.success(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            if notice:
+                st.warning(notice)
 
-            if flags:
-                st.markdown("**Detected Red Flags:**")
-                for flag in flags:
-                    st.markdown(f"- {flag}")
-            else:
-                st.markdown("- No obvious scam keywords or payment traps detected.")
-
-            st.info("Tip: Never pay money for offer letters, laptops, or onboarding, and always verify the recruiter on the company's official career page.")
+            st.markdown(result_md)
