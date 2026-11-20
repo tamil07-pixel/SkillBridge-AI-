@@ -6,84 +6,12 @@ import streamlit as st
 st.set_page_config(page_title="SkillBridge AI", page_icon="🌉", layout="centered")
 
 st.title("SkillBridge AI")
-st.caption("AI-Driven Job Scam Detector & Personalized Career Roadmap Generator")
+st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector")
 
-tab1, tab2 = st.tabs(["🛡️ Job Scam Detector", "🗺️ Career Roadmap Generator"])
-
-
-# -------------------- TAB 1: JOB SCAM DETECTOR --------------------
-def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
-    text = job_text.lower()
-    score = 0
-    red_flags = []
-
-    scam_patterns = [
-        (r"\b(registration fee|security deposit|pay to apply|training fee|processing fee|refundable deposit)\b",
-         "Asks for upfront payment, registration fee, or security deposit (major scam indicator).", 35),
-        (r"\b(whatsapp|telegram)\b.*\b(contact|message|dm|number)\b|\b(contact|message|dm)\b.*\b(whatsapp|telegram)\b",
-         "Pushes communication to WhatsApp/Telegram instead of an official company email/portal.", 20),
-        (r"\b(earn ₹|earn rs|daily payout|weekly payout|guaranteed income|no experience needed.*high salary|part[- ]time.*₹\s?\d{4,})\b",
-         "Promises unrealistic guaranteed income or high pay for zero experience.", 25),
-        (r"\b(aadhaar|pan card|bank details|otp|cvv|passbook)\b",
-         "Requests sensitive personal or banking documents before an official interview.", 30),
-        (r"\b(urgent hiring|limited slots|apply within 1 hour|immediate joining without interview|direct offer letter)\b",
-         "Uses high-pressure urgency or offers a job without any real interview process.", 20),
-        (r"@gmail\.com|@yahoo\.com|@outlook\.com",
-         "Uses a free personal email domain instead of an official company domain.", 15),
-    ]
-
-    for pattern, reason, weight in scam_patterns:
-        if re.search(pattern, text):
-            score += weight
-            red_flags.append(reason)
-
-    score = min(score, 100)
-
-    if score >= 50:
-        verdict = "High Risk — Likely a Job Scam"
-    elif score >= 20:
-        verdict = "Medium Risk — Verify Carefully Before Applying"
-    else:
-        verdict = "Low Risk — Looks Legitimate (Still Verify Company Details)"
-
-    return verdict, score, red_flags
+tab1, tab2 = st.tabs(["🗺️ Career Roadmap Generator", "🛡️ Job Scam Detector"])
 
 
-with tab1:
-    st.subheader("Job Scam Detector")
-    st.write("Paste a job description, recruiter message, or offer details to check for scam red flags.")
-
-    job_input = st.text_area(
-        "Job Posting / Message:",
-        height=180,
-        placeholder="Paste the job post, salary details, contact info, or recruiter message here...",
-    )
-
-    if st.button("Analyze Job Posting"):
-        if not job_input.strip():
-            st.warning("Please paste a job description or message first.")
-        else:
-            with st.spinner("Analyzing job details..."):
-                verdict, risk_score, flags = analyze_job_offline(job_input)
-
-            if risk_score >= 50:
-                st.error(f"**{verdict}** (Risk Score: {risk_score}/100)")
-            elif risk_score >= 20:
-                st.warning(f"**{verdict}** (Risk Score: {risk_score}/100)")
-            else:
-                st.success(f"**{verdict}** (Risk Score: {risk_score}/100)")
-
-            if flags:
-                st.markdown("**Detected Red Flags:**")
-                for flag in flags:
-                    st.markdown(f"- {flag}")
-            else:
-                st.markdown("- No obvious scam keywords or payment traps detected.")
-
-            st.info("Tip: Never pay money for offer letters, laptops, or onboarding, and always verify the recruiter on the company's official career page.")
-
-
-# -------------------- TAB 2: CAREER ROADMAP GENERATOR --------------------
+# -------------------- TAB 1: CAREER ROADMAP GENERATOR --------------------
 def fallback_roadmap(target_role: str, exp_level: str) -> str:
     clean_role = target_role.strip() or "Full Stack Developer"
 
@@ -137,7 +65,7 @@ def generate_roadmap(target_role: str, exp_level: str, retries: int = 1) -> tupl
     return fallback_roadmap(target_role, exp_level), None
 
 
-with tab2:
+with tab1:
     st.subheader("Custom Career Roadmap Generator")
     st.write("Enter your target role to generate a step-by-step learning path and required skills.")
 
@@ -155,3 +83,75 @@ with tab2:
             st.warning(notice)
 
         st.markdown(roadmap_text)
+
+
+# -------------------- TAB 2: JOB SCAM DETECTOR --------------------
+def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
+    text = job_text.lower()
+    score = 0
+    red_flags = []
+
+    scam_patterns = [
+        (r"\b(registration fee|security deposit|pay to apply|training fee|processing fee|refundable deposit)\b",
+         "Asks for upfront payment, registration fee, or security deposit (major scam indicator).", 35),
+        (r"\b(whatsapp|telegram)\b.*\b(contact|message|dm|number)\b|\b(contact|message|dm)\b.*\b(whatsapp|telegram)\b",
+         "Pushes communication to WhatsApp/Telegram instead of an official company email/portal.", 20),
+        (r"\b(earn ₹|earn rs|daily payout|weekly payout|guaranteed income|no experience needed.*high salary|part[- ]time.*₹\s?\d{4,})\b",
+         "Promises unrealistic guaranteed income or high pay for zero experience.", 25),
+        (r"\b(aadhaar|pan card|bank details|otp|cvv|passbook)\b",
+         "Requests sensitive personal or banking documents before an official interview.", 30),
+        (r"\b(urgent hiring|limited slots|apply within 1 hour|immediate joining without interview|direct offer letter)\b",
+         "Uses high-pressure urgency or offers a job without any real interview process.", 20),
+        (r"@gmail\.com|@yahoo\.com|@outlook\.com",
+         "Uses a free personal email domain instead of an official company domain.", 15),
+    ]
+
+    for pattern, reason, weight in scam_patterns:
+        if re.search(pattern, text):
+            score += weight
+            red_flags.append(reason)
+
+    score = min(score, 100)
+
+    if score >= 50:
+        verdict = "High Risk — Likely a Job Scam"
+    elif score >= 20:
+        verdict = "Medium Risk — Verify Carefully Before Applying"
+    else:
+        verdict = "Low Risk — Looks Legitimate (Still Verify Company Details)"
+
+    return verdict, score, red_flags
+
+
+with tab2:
+    st.subheader("Job Scam Detector")
+    st.write("Paste a job description, recruiter message, or offer details to check for scam red flags.")
+
+    job_input = st.text_area(
+        "Job Posting / Message:",
+        height=180,
+        placeholder="Paste the job post, salary details, contact info, or recruiter message here...",
+    )
+
+    if st.button("Analyze Job Posting"):
+        if not job_input.strip():
+            st.warning("Please paste a job description or message first.")
+        else:
+            with st.spinner("Analyzing job details..."):
+                verdict, risk_score, flags = analyze_job_offline(job_input)
+
+            if risk_score >= 50:
+                st.error(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            elif risk_score >= 20:
+                st.warning(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            else:
+                st.success(f"**{verdict}** (Risk Score: {risk_score}/100)")
+
+            if flags:
+                st.markdown("**Detected Red Flags:**")
+                for flag in flags:
+                    st.markdown(f"- {flag}")
+            else:
+                st.markdown("- No obvious scam keywords or payment traps detected.")
+
+            st.info("Tip: Never pay money for offer letters, laptops, or onboarding, and always verify the recruiter on the company's official career page.")
