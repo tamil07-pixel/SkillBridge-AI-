@@ -1,68 +1,157 @@
 import os
+import re
 import time
 import streamlit as st
 
-st.set_page_config(page_title="Custom Career Roadmap Generator", layout="centered")
+st.set_page_config(page_title="SkillBridge AI", page_icon="🌉", layout="centered")
 
-st.title("Custom Career Roadmap Generator")
-st.write("Enter your target role to generate a step-by-step learning path and required skills.")
+st.title("SkillBridge AI")
+st.caption("AI-Driven Job Scam Detector & Personalized Career Roadmap Generator")
 
-role = st.text_input(
-    "Target Role (e.g., Full Stack Developer, Embedded Systems Engineer):",
-    value="Full Stack Developer",
-)
-level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
+tab1, tab2 = st.tabs(["🛡️ Job Scam Detector", "🗺️ Career Roadmap Generator"])
 
 
+# -------------------- TAB 1: JOB SCAM DETECTOR --------------------
+def analyze_job_offline(job_text: str) -> tuple[str, int, list[str]]:
+    text = job_text.lower()
+    score = 0
+    red_flags = []
+
+    scam_patterns = [
+        (r"\b(registration fee|security deposit|pay to apply|training fee|processing fee|refundable deposit)\b",
+         "Asks for upfront payment, registration fee, or security deposit (major scam indicator).", 35),
+        (r"\b(whatsapp|telegram)\b.*\b(contact|message|dm|number)\b|\b(contact|message|dm)\b.*\b(whatsapp|telegram)\b",
+         "Pushes communication to WhatsApp/Telegram instead of an official company email/portal.", 20),
+        (r"\b(earn ₹|earn rs|daily payout|weekly payout|guaranteed income|no experience needed.*high salary|part[- ]time.*₹\s?\d{4,})\b",
+         "Promises unrealistic guaranteed income or high pay for zero experience.", 25),
+        (r"\b(aadhaar|pan card|bank details|otp|cvv|passbook)\b",
+         "Requests sensitive personal or banking documents before an official interview.", 30),
+        (r"\b(urgent hiring|limited slots|apply within 1 hour|immediate joining without interview|direct offer letter)\b",
+         "Uses high-pressure urgency or offers a job without any real interview process.", 20),
+        (r"@gmail\.com|@yahoo\.com|@outlook\.com",
+         "Uses a free personal email domain instead of an official company domain.", 15),
+    ]
+
+    for pattern, reason, weight in scam_patterns:
+        if re.search(pattern, text):
+            score += weight
+            red_flags.append(reason)
+
+    score = min(score, 100)
+
+    if score >= 50:
+        verdict = "High Risk — Likely a Job Scam"
+    elif score >= 20:
+        verdict = "Medium Risk — Verify Carefully Before Applying"
+    else:
+        verdict = "Low Risk — Looks Legitimate (Still Verify Company Details)"
+
+    return verdict, score, red_flags
+
+
+with tab1:
+    st.subheader("Job Scam Detector")
+    st.write("Paste a job description, recruiter message, or offer details to check for scam red flags.")
+
+    job_input = st.text_area(
+        "Job Posting / Message:",
+        height=180,
+        placeholder="Paste the job post, salary details, contact info, or recruiter message here...",
+    )
+
+    if st.button("Analyze Job Posting"):
+        if not job_input.strip():
+            st.warning("Please paste a job description or message first.")
+        else:
+            with st.spinner("Analyzing job details..."):
+                verdict, risk_score, flags = analyze_job_offline(job_input)
+
+            if risk_score >= 50:
+                st.error(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            elif risk_score >= 20:
+                st.warning(f"**{verdict}** (Risk Score: {risk_score}/100)")
+            else:
+                st.success(f"**{verdict}** (Risk Score: {risk_score}/100)")
+
+            if flags:
+                st.markdown("**Detected Red Flags:**")
+                for flag in flags:
+                    st.markdown(f"- {flag}")
+            else:
+                st.markdown("- No obvious scam keywords or payment traps detected.")
+
+            st.info("Tip: Never pay money for offer letters, laptops, or onboarding, and always verify the recruiter on the company's official career page.")
+
+
+# -------------------- TAB 2: CAREER ROADMAP GENERATOR --------------------
 def fallback_roadmap(target_role: str, exp_level: str) -> str:
-    clean_role = target_role.strip() or "Software Developer"
+    clean_role = target_role.strip() or "Full Stack Developer"
+
+    level_focus = {
+        "Beginner": "Focus on strong fundamentals, guided mini-projects, and clean GitHub commits.",
+        "Intermediate": "Focus on system design basics, API optimization, testing, and full-stack deployment.",
+        "Advanced": "Focus on scalable architecture, performance tuning, security, and production workflows.",
+    }.get(exp_level, "")
+
     return f"""
 ### Roadmap for {clean_role} ({exp_level})
+> {level_focus}
 
 1. **Core Foundations (Weeks 1–3)**
-   - Master programming basics, data structures, and problem-solving relevant to **{clean_role}**.
-   - Learn Git & GitHub for version control and clean project documentation.
+   - Master core programming concepts, data structures, and problem-solving tailored for **{clean_role}**.
+   - Practice Git, GitHub branching, and writing clean technical documentation.
 
 2. **Core Stack & Tools (Weeks 4–8)**
-   - Build hands-on modules using the primary frameworks, APIs, and databases needed for **{clean_role}**.
-   - Practice debugging, testing, and reading official documentation.
+   - Build hands-on modules using the primary frameworks, REST APIs, and databases required for **{clean_role}**.
+   - Learn authentication, error handling, and automated testing.
 
-3. **Projects & Deployment (Weeks 9–12)**
-   - Build 2 real-world end-to-end projects and deploy them live.
-   - Add clear READMEs, architecture notes, and live demos to your portfolio.
+3. **Real-World Projects & Deployment (Weeks 9–12)**
+   - Build and deploy 2 complete end-to-end projects with live links.
+   - Document architecture decisions, challenges solved, and screenshots in your README.
 
-4. **Interview & Role Readiness**
-   - Practice role-specific coding/system questions and refine your resume around measurable outcomes.
+4. **Interview & Portfolio Readiness**
+   - Practice role-specific technical questions and tailor your resume around measurable project outcomes.
 """
 
 
-def generate_with_retry(target_role: str, exp_level: str, retries: int = 2) -> tuple[str, str | None]:
-    # Replace this block with your actual AI/API call if you use one
-    api_key = os.getenv("OPENAI_API_KEY") or st.secrets.get("OPENAI_API_KEY", None)
+def generate_roadmap(target_role: str, exp_level: str, retries: int = 1) -> tuple[str, str | None]:
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        try:
+            api_key = st.secrets.get("OPENAI_API_KEY", None)
+        except Exception:
+            api_key = None
 
     for attempt in range(retries + 1):
         try:
             if not api_key:
-                # No external key configured -> return structured local roadmap cleanly
-                return fallback_roadmap(target_role, exp_level), "No API key found; showing structured offline roadmap."
-
-            # Put your actual API client call here
+                return fallback_roadmap(target_role, exp_level), None
+            # Add external LLM API call here if OPENAI_API_KEY is configured
             return fallback_roadmap(target_role, exp_level), None
-
         except Exception as e:
             if attempt < retries:
-                time.sleep(1.5)
+                time.sleep(1)
                 continue
-            return fallback_roadmap(target_role, exp_level), f"API call failed: {type(e).__name__}: {e}"
+            return fallback_roadmap(target_role, exp_level), f"Switched to offline roadmap ({type(e).__name__})."
 
     return fallback_roadmap(target_role, exp_level), None
 
 
-if st.button("Generate Roadmap"):
-    with st.spinner("Generating your roadmap..."):
-        roadmap_text, info_or_err = generate_with_retry(role, level)
+with tab2:
+    st.subheader("Custom Career Roadmap Generator")
+    st.write("Enter your target role to generate a step-by-step learning path and required skills.")
 
-    if info_or_err:
-        st.warning(info_or_err)
+    role = st.text_input(
+        "Target Role (e.g., Full Stack Developer, Python Developer, Embedded Systems Engineer):",
+        value="Full Stack Developer",
+    )
+    level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
-    st.markdown(roadmap_text)
+    if st.button("Generate Roadmap"):
+        with st.spinner("Generating your roadmap..."):
+            roadmap_text, notice = generate_roadmap(role, level)
+
+        if notice:
+            st.warning(notice)
+
+        st.markdown(roadmap_text)
