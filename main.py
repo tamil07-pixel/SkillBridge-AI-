@@ -1,4 +1,4 @@
-# SkillBridge AI - Timeout Fix Edition
+# SkillBridge AI - Motivational Emojis Edition
 import json
 import os
 import re
@@ -9,8 +9,8 @@ import streamlit as st
 
 st.set_page_config(page_title="SkillBridge AI", page_icon="🌉", layout="centered")
 
-st.title("SkillBridge AI")
-st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector")
+st.title("SkillBridge AI 🚀")
+st.caption("Personalized Career Roadmap Generator & AI-Driven Job Scam Detector 💪")
 
 tab1, tab2 = st.tabs(["🗺️ Career Roadmap Generator", "🛡️ Job Scam Detector"])
 
@@ -158,12 +158,14 @@ def call_ai(prompt: str, api_key: str, provider: str) -> str:
 def fallback_roadmap(target_role: str, exp_level: str) -> str:
     clean_role = target_role.strip() or "Full-Stack Developer"
     return f"""
-### 12-Week Roadmap: {clean_role} ({exp_level})
+### 🎯 12-Week Roadmap: {clean_role} ({exp_level}) 🚀
 
-1. **Weeks 1–3 (Foundations):** Core concepts, terminology, rules, and basic tools for **{clean_role}**.
-2. **Weeks 4–6 (Core Practice):** Hands-on exercises and foundational tasks in **{clean_role}**.
-3. **Weeks 7–9 (Real-World Scenarios):** Practical problem solving, common mistakes, and quality/safety standards.
-4. **Weeks 10–12 (Capstone & Readiness):** Complete 2 practical projects/assessments and prepare for interviews or real-world work.
+1. **🌱 Weeks 1–3 (Foundations):** Core concepts, terminology, rules, and basic tools for **{clean_role}**.
+2. **💪 Weeks 4–6 (Core Practice):** Hands-on exercises and foundational tasks in **{clean_role}**.
+3. **🔥 Weeks 7–9 (Real-World Scenarios):** Practical problem solving, common mistakes, and quality/safety standards.
+4. **🏆 Weeks 10–12 (Capstone & Readiness):** Complete 2 practical projects/assessments and prepare for interviews or real-world work.
+
+> ✨ **Keep going!** Small daily steps build big confidence. You've got this! 💪
 """
 
 
@@ -178,9 +180,10 @@ def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | No
         )
 
     prompt = (
-        f"Give a crisp, well-structured 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
+        f"Give a crisp, well-structured, encouraging 12-week roadmap for '{clean_role}' at '{exp_level}' level. "
+        f"Use relevant motivational emojis (such as 🎯, 🚀, 💪, 🔥, 🌱, 🏆, ✨) naturally across headings and milestones. "
         f"Keep it strictly relevant to '{clean_role}'. Include: Overview, Key Skills/Tools, "
-        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects, and a short checklist."
+        f"Weeks 1-3, Weeks 4-6, Weeks 7-9, Weeks 10-12, 2 practical projects, a short checklist, and a brief motivating closing line."
     )
 
     try:
@@ -190,7 +193,7 @@ def generate_roadmap_ai(target_role: str, exp_level: str) -> tuple[str, str | No
 
 
 with tab1:
-    st.subheader("Custom Career Roadmap Generator")
+    st.subheader("Custom Career Roadmap Generator 🎯")
     st.write("Enter any target role or course to generate a roadmap.")
 
     role = st.text_input(
@@ -199,8 +202,8 @@ with tab1:
     )
     level = st.selectbox("Current Experience Level:", ["Beginner", "Intermediate", "Advanced"])
 
-    if st.button("Generate Roadmap"):
-        with st.spinner("Generating roadmap..."):
+    if st.button("Generate Roadmap 🚀"):
+        with st.spinner("Generating roadmap... ✨"):
             roadmap_text, notice = generate_roadmap_ai(role, level)
 
         if notice:
@@ -237,11 +240,11 @@ def fallback_scam_check(job_text: str) -> tuple[str, int, list[str]]:
 
     score = min(score, 100)
     if score >= 50:
-        verdict = "High Risk — Likely a Job Scam"
+        verdict = "🚨 High Risk — Likely a Job Scam"
     elif score >= 20:
-        verdict = "Medium Risk — Verify Carefully"
+        verdict = "⚠️ Medium Risk — Verify Carefully"
     else:
-        verdict = "Low Risk — Looks Safer (Still Verify Company)"
+        verdict = "✅ Low Risk — Looks Safer (Still Verify Company)"
 
     return verdict, score, flags
 
@@ -252,15 +255,15 @@ def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
         verdict, score, flags = fallback_scam_check(job_text)
         bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No obvious scam keywords detected."
         return (
-            f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{bullets}",
+            f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**🚩 Red Flags:**\n{bullets}\n\n> 🛡️ **Stay sharp!** Real opportunities don't rush you into paying or sharing sensitive info.",
             "No API key found in Secrets (`GEMINI_API_KEY`). Showing offline scan.",
         )
 
     prompt = (
-        "Analyze this job post or recruiter message for scam signs. Give:\n"
+        "Analyze this job post or recruiter message for scam signs in an encouraging, clear tone with supportive emojis (🛡️, 🔍, 🚨, ✅, 💪). Give:\n"
         "1. Risk Level (Low / Medium / High) & short summary\n"
         "2. Red Flags\n"
-        "3. Verification Steps\n\n"
+        "3. Verification Steps & a short encouraging safety note\n\n"
         f"Text:\n{job_text}"
     )
 
@@ -270,13 +273,13 @@ def analyze_scam_ai(job_text: str) -> tuple[str, str | None]:
         verdict, score, flags = fallback_scam_check(job_text)
         bullets = "\n".join(f"- {f}" for f in flags) if flags else "- No obvious scam keywords detected."
         return (
-            f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**Red Flags:**\n{bullets}",
+            f"**{verdict}** (Offline Risk Score: {score}/100)\n\n**🚩 Red Flags:**\n{bullets}\n\n> 🛡️ **Stay sharp!** Real opportunities don't rush you into paying or sharing sensitive info.",
             f"AI error ({provider}): {e}",
         )
 
 
 with tab2:
-    st.subheader("Job Scam Detector")
+    st.subheader("Job Scam Detector 🛡️")
     st.write("Paste a job post or recruiter message for scam analysis.")
 
     job_input = st.text_area(
@@ -285,11 +288,11 @@ with tab2:
         placeholder="Paste the job description, salary details, contact info, or recruiter message here...",
     )
 
-    if st.button("Analyze Job Posting"):
+    if st.button("Analyze Job Posting 🔍"):
         if not job_input.strip():
             st.warning("Please paste a job posting or message first.")
         else:
-            with st.spinner("Analyzing job posting..."):
+            with st.spinner("Analyzing job posting... 🛡️"):
                 result_md, notice = analyze_scam_ai(job_input)
 
             if notice:
